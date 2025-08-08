@@ -1,0 +1,6 @@
+*.graphml
+*.html
+__pycache__
+cache
+venv
+.DS_Store
