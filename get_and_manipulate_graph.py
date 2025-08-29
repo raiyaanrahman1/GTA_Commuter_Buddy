@@ -1,8 +1,9 @@
-import osmnx as ox
-import networkx as nx
+import osmnx as ox          # Open Street Map Networks
+import pyproj               # cartographic projections library
+import networkx as nx       # Graph networks library
 import time
 import os
-from typing import Optional, List
+from typing import Set
 
 def download_initial_graph():
     ox.settings.use_cache = True # pyright: ignore[reportAttributeAccessIssue]
@@ -36,9 +37,8 @@ def download_initial_graph():
     return G
 
 
-def tag_graph(G: nx.MultiDiGraph):
+def tag_toll_nodes(G: nx.MultiDiGraph):
     # Find toll nodes
-    print('Finding Toll nodes and tagging graph')
     toll_node_ids = set()
     non_toll_node_ids = set()
     marked_as_toll, ref_407, name_407 = 0, 0, 0
@@ -57,18 +57,18 @@ def tag_graph(G: nx.MultiDiGraph):
             non_toll_node_ids.update([u, v])
         
 
-    print(f'Marked as toll: {marked_as_toll}')
-    print(f'Has 407 ref: {ref_407}')
-    print(f'Has name 407: {name_407}')
+    print(f'\tMarked as toll: {marked_as_toll}')
+    print(f'\tHas 407 ref: {ref_407}')
+    print(f'\tHas name 407: {name_407}')
 
     # Find toll entrances/exits
     entrance_exit_nodes = set()
     # Find toll entrances/exits
     entrance_exit_nodes = toll_node_ids.intersection(non_toll_node_ids)
-    print(f'Graph nodes: {len(G.nodes)}')
-    print(f'Graph toll nodes: {len(toll_node_ids)}')
-    print(f'Graph non toll nodes: {len(non_toll_node_ids)}')
-    print(f'Graph entrance/exit nodes {len(entrance_exit_nodes)}')
+    print(f'\tGraph nodes: {len(G.nodes)}')
+    print(f'\tGraph toll nodes: {len(toll_node_ids)}')
+    print(f'\tGraph non toll nodes: {len(non_toll_node_ids)}')
+    print(f'\tGraph entrance/exit nodes {len(entrance_exit_nodes)}')
 
     for node in G.nodes:
         G.nodes[node]['tag'] = None
@@ -78,10 +78,6 @@ def tag_graph(G: nx.MultiDiGraph):
         #     G.nodes[node]['tag'] = 'entrance_exit'
 
     return G, toll_node_ids, non_toll_node_ids
-
-import osmnx as ox
-import networkx as nx
-from typing import List
 
 def filter_tagged_nodes(G: nx.MultiDiGraph, tag_filter: str) -> nx.MultiDiGraph:
     """
@@ -97,55 +93,46 @@ def filter_tagged_nodes(G: nx.MultiDiGraph, tag_filter: str) -> nx.MultiDiGraph:
     # Get nodes matching the tag filter
     matching_nodes = [n for n, d in G.nodes(data=True) if d.get('tag') == tag_filter]
     
-    # Create induced subgraph
-    G_filtered = G.subgraph(matching_nodes).copy()
-    
-    # Ensure the result is a MultiDiGraph
-    return nx.MultiDiGraph(G_filtered)
+    return get_subgraph_copy(G, set(matching_nodes))
 
-def get_connected_components_dfs(G: nx.MultiDiGraph) -> List[List[int]]:
-    """
-    Find all connected components in DFS order, starting from the SW-most node in each.
-    
-    Args:
-        G: Input MultiDiGraph
+def get_subgraph_copy(G: nx.MultiDiGraph, node_subset: Set[int]):
+    return nx.MultiDiGraph(G.subgraph(node_subset).copy())
+
+def find_major_intersections(G: nx.MultiDiGraph, min_degree: int = 2):
+    # Highway types considered "major"
+    major_highway_types = {"motorway", "trunk", "primary", "secondary"}
+
+    major_intersections = []
+
+    for node in G.nodes:
+        edges = G.edges(node, keys=True, data=True)
+        major_count = sum(
+            1 for _, _, _, d in edges
+            if isinstance(d.get("highway"), str) and d.get('highway') in major_highway_types
+            or isinstance(d.get('highway'), list) and any(
+                hw in major_highway_types for hw in d.get('highway')
+            )
+        )
         
-    Returns:
-        List of lists containing nodes in DFS order for each component
-    """
-    # Get undirected view for connectivity
-    G_undirected = G.to_undirected()
-    
-    # Get connected components
-    components = list(nx.weakly_connected_components(G))
-    
-    result = []
-    for component in components:
-        # Find SW-most node in the component
-        sw_node = min(component,
-                     key=lambda n: (
-                         G.nodes[n]['y'] if 'y' in G.nodes[n] else float('inf'),
-                         G.nodes[n]['x'] if 'x' in G.nodes[n] else float('inf')
-                     ))
+        if major_count >= min_degree:
+            major_intersections.append(node)
         
-        # Get DFS nodes starting from SW-most node
-        dfs_nodes = list(nx.dfs_preorder_nodes(G_undirected, source=sw_node))
-        
-        # Filter to only include nodes in this component
-        dfs_nodes = [n for n in dfs_nodes if n in component]
-        
-        result.append(dfs_nodes)
+    return set(major_intersections)
+
+def merge_nearby_nodes(
+    G: nx.MultiDiGraph,
+    merge_dist: float,
+) -> nx.MultiDiGraph:
+    crs = G.graph.get("crs")
+    is_projected = pyproj.CRS(crs).is_projected
+    # print(crs, "projected?", is_projected)
+    if not is_projected:
+        G = ox.project_graph(G)
     
-    return result
+    G_simplified = ox.simplification.consolidate_intersections(
+        G,
+        tolerance=merge_dist
+    )
+    assert isinstance(G_simplified, nx.MultiDiGraph)
 
-def prune_close_connected_toll_nodes(G: nx.MultiDiGraph):
-    tagged_graph = filter_tagged_nodes(G, 'toll_route')
-    components = get_connected_components_dfs(tagged_graph)
-
-    for component in components:
-        print(len(component))
-        print([(G.nodes[node]['x'], G.nodes[node]['y']) for node in component[:5]])
-        print([(G.nodes[node]['x'], G.nodes[node]['y']) for node in component[-5:]])
-
-    # TODO: implement
-
+    return ox.project_graph(G_simplified, to_crs=crs)
