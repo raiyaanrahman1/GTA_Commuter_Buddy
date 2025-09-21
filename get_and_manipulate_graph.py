@@ -3,7 +3,7 @@ import pyproj               # cartographic projections library
 import networkx as nx       # Graph networks library
 import time
 import os
-from typing import Set
+from typing import Set, List
 
 def download_initial_graph():
     ox.settings.use_cache = True # pyright: ignore[reportAttributeAccessIssue]
@@ -129,6 +129,10 @@ def merge_nearby_nodes(
     if not is_projected:
         G = ox.project_graph(G)
     
+    # nodes, edges = ox.graph_to_gdfs(G)
+    # print(nodes.head())
+    # print(nodes.columns)
+
     G_simplified = ox.simplification.consolidate_intersections(
         G,
         tolerance=merge_dist
@@ -136,3 +140,87 @@ def merge_nearby_nodes(
     assert isinstance(G_simplified, nx.MultiDiGraph)
 
     return ox.project_graph(G_simplified, to_crs=crs)
+
+def simplify_node_chain(in_order_node_ids: List[int], graph: nx.MultiDiGraph, min_dist=1000):
+    nodes_to_keep = [in_order_node_ids[0]]
+    edges_to_keep = []
+    prev_node = None
+    cur_len = 0
+    for node_id in in_order_node_ids:
+        if prev_node is None:
+            prev_node = node_id
+            continue
+        # TODO: change to using length property?
+        dist = ox.distance.great_circle(
+            graph.nodes[prev_node]['y'],
+            graph.nodes[prev_node]['x'],
+            graph.nodes[node_id]['y'],
+            graph.nodes[node_id]['x'],
+        )
+        cur_len += dist
+        if dist >= min_dist:
+            nodes_to_keep.append(node_id)
+            edges_to_keep.append((prev_node, node_id, cur_len))
+            prev_node = node_id
+            cur_len = 0
+    return nodes_to_keep, edges_to_keep
+
+def correct_toll_graph(graph: nx.MultiDiGraph):
+    """
+    NOTE: This algorithm is specific to the 407 toll graph.
+    Possible general strategy for removing cycles: for each node in the component,
+    select it as the starting node for dfs traversal and
+    check if len(dfs_preorder_nodes) == len(component).
+    Then, follow the edges in that preorder and remove any extraneous edges
+    """
+    components = list(nx.weakly_connected_components(graph))
+
+    for i, component in enumerate(components):
+        if i == 0:
+            continue
+        ne_node = max(component,
+            key=lambda n: (
+                graph.nodes[n]['y'] if 'y' in graph.nodes[n] else float('inf'),
+                graph.nodes[n]['x'] if 'x' in graph.nodes[n] else float('inf')
+            )
+        )
+        dfs_nodes = list(nx.dfs_preorder_nodes(graph.to_undirected(), source=ne_node))
+        for j, node in enumerate(dfs_nodes):
+            edges_to_remove = []
+            visited = set()
+            for u, v, k in graph.out_edges(node, keys=True):
+                if v in visited:
+                    edges_to_remove.append((u, v, k))
+                    continue
+                visited.add(v)
+                if v != dfs_nodes[j + 1]:
+                    edges_to_remove.append((u, v, k))
+            
+            for u, v, k in edges_to_remove:
+                graph.remove_edge(u, v, k)
+
+    node_to_rid_map = {}
+    for i, component in enumerate(components):
+        for j, node in enumerate(component):
+            node_to_rid_map[node] = f'{i}-{j}'
+    
+def get_connected_components_dfs(graph: nx.MultiDiGraph) -> List[List[int]]:
+    G_undirected = graph.to_undirected()
+    
+    # Get connected components
+    components = list(nx.weakly_connected_components(graph))
+    
+    result = []
+    node_to_rid_map = {}
+    for j, component in enumerate(components):
+        starting_nodes = [
+            node for node in component
+            if graph.in_degree(node) == 0 and graph.out_degree(node) == 1
+        ]
+
+        assert len(starting_nodes) == 1, len(starting_nodes)
+        dfs_nodes = list(nx.dfs_preorder_nodes(G_undirected, source=starting_nodes[0]))
+
+        result.append(dfs_nodes)
+
+    return result

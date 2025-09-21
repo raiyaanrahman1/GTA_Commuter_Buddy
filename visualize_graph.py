@@ -5,7 +5,13 @@ from folium import plugins
 import networkx as nx
 import time
 
-def visualize_graph(G: nx.MultiDiGraph, map: folium.Map, node_colour, show_edges = False, show_direction = True):
+def setup_folium_graph(G: nx.MultiDiGraph):
+    center_lat = sum(node['y'] for node in G.nodes.values()) / len(G)
+    center_lon = sum(node['x'] for node in G.nodes.values()) / len(G)
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles="cartodbpositron")
+    return m
+
+def visualize_graph(G: nx.MultiDiGraph, map: folium.Map, node_colour, show_edges = False, show_direction = False):
     # Plot nodes
     for node, data in G.nodes(data=True):
         tag = data.get('tag', None)

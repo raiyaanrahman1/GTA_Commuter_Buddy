@@ -8,9 +8,12 @@ from get_and_manipulate_graph import (
     filter_tagged_nodes,
     find_major_intersections,
     get_subgraph_copy,
-    merge_nearby_nodes
+    merge_nearby_nodes,
+    get_connected_components_dfs,
+    correct_toll_graph,
+    simplify_node_chain
 )
-from visualize_graph import visualize_graph
+from visualize_graph import visualize_graph, setup_folium_graph
 from timer import Timer
 REDOWNLOAD_GRAPH = False
 
@@ -28,8 +31,21 @@ with Timer('Finding Toll nodes and tagging graph', 'Tagged graph'):
 
 # Step 3: Get separate 407 and major intersection graphs and simplify them
 toll_graph = filter_tagged_nodes(G, 'toll_route')
+correct_toll_graph(toll_graph)
 with Timer('Simplifying toll graph', 'Simplified toll graph'):
-    simplified_toll_graph = merge_nearby_nodes(toll_graph, merge_dist=300)
+    # simplified_toll_graph = merge_nearby_nodes(toll_graph, merge_dist=300)
+    components_dfs = get_connected_components_dfs(toll_graph)
+    simplified_components = []
+    full_edges_to_keep = []
+    for component in components_dfs:
+        simplified_component, edges_to_keep = simplify_node_chain(component, toll_graph)
+        simplified_components.append(simplified_component)
+        full_edges_to_keep += edges_to_keep
+    simplified_nodes = set(node for component in simplified_components for node in component)
+    simplified_toll_graph = get_subgraph_copy(toll_graph, simplified_nodes)
+    for u, v, len_ in full_edges_to_keep:
+        if v not in simplified_toll_graph[u]:
+            simplified_toll_graph.add_edge(u, v, length=len_)
 
 major_intersections = find_major_intersections(G)
 major_int_graph = get_subgraph_copy(G, major_intersections)
@@ -49,15 +65,17 @@ print(f'Simplified intersections: {len(major_int_graph_simplified)}')
 
 # Step 5: Create a visualization and save it to an html file
 # Create base map centered on the graph
-center_lat = sum(node['y'] for node in toll_graph.nodes.values()) / len(toll_graph)
-center_lon = sum(node['x'] for node in toll_graph.nodes.values()) / len(toll_graph)
-m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles="cartodbpositron")
+m = setup_folium_graph(toll_graph)
 with Timer('Plotting graph', 'Plotted graph'):
     # m = visualize_graph(G, m, 'gray')
-    m = visualize_graph(major_int_graph_simplified, m, 'green')
+    # m = visualize_graph(major_int_graph_simplified, m, 'green')
     m = visualize_graph(toll_graph, m, 'blue', True, True)
     m = visualize_graph(simplified_toll_graph, m, 'red')
 m.save('407_tagged_nodes_map.html')
+
+m = setup_folium_graph(major_int_graph_simplified)
+m = visualize_graph(major_int_graph_simplified, m, 'green', True)
+m.save('major_intersections_simplified.html')
 
 
 

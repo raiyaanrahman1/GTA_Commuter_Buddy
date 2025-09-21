@@ -6,3 +6,4 @@ venv
 .DS_Store
 output.txt
 written_unused_functions.py
+.env
