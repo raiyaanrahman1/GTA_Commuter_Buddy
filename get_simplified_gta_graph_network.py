@@ -55,6 +55,7 @@ with Timer('Simplifying major intersection graph', 'Simplified major intersectio
     major_int_graph_simplified = merge_nearby_nodes(major_int_graph, merge_dist=50)
 
 # Step 4: Save graphs and print details
+ox.save_graphml(toll_graph, 'full_toll_graph.graphml')
 ox.save_graphml(major_int_graph_simplified, 'major_intersections_simplified.graphml')
 ox.save_graphml(simplified_toll_graph, 'simplified_toll_graph.graphml')
 print(f'Length of original full graph: {len(G.nodes)}')
@@ -69,8 +70,11 @@ m = setup_folium_graph(toll_graph)
 with Timer('Plotting graph', 'Plotted graph'):
     # m = visualize_graph(G, m, 'gray')
     # m = visualize_graph(major_int_graph_simplified, m, 'green')
-    m = visualize_graph(toll_graph, m, 'blue', True, True)
-    m = visualize_graph(simplified_toll_graph, m, 'red')
+    # m = visualize_graph(toll_graph, m, 'blue', True, True)
+    toll_graph_comp1 = get_subgraph_copy(simplified_toll_graph, simplified_components[0])
+    toll_graph_comp2 = get_subgraph_copy(simplified_toll_graph, simplified_components[1])
+    m = visualize_graph(toll_graph_comp1, m, 'red')
+    m = visualize_graph(toll_graph_comp2, m, 'purple')
 m.save('407_tagged_nodes_map.html')
 
 m = setup_folium_graph(major_int_graph_simplified)

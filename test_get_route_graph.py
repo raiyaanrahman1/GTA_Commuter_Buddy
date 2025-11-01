@@ -12,17 +12,17 @@ if __name__ == '__main__':
     route_graphs, polylines = builder.get_full_route_graph(origin[0], origin[1], destination[0], destination[1])
 
     m = setup_folium_graph(builder.toll_graph)
-    m = visualize_graph(builder.toll_graph, m, 'red')
-    m = visualize_graph(builder.major_ints_graph, m, 'orange')
+    # m = visualize_graph(builder.toll_graph, m, 'red')
+    # m = visualize_graph(builder.major_ints_graph, m, 'orange')
     colours = ['green', 'blue', 'purple']
     for i, graph in enumerate(route_graphs):
-        m = visualize_graph(graph, m, colours[i], True, True)
+        m = visualize_graph(graph, m, colours[i], True, False)
     
     m.save('route_graphs.html')
 
     m = setup_folium_graph(builder.toll_graph)
-    m = visualize_graph(builder.toll_graph, m, 'red')
-    m = visualize_graph(builder.major_ints_graph, m, 'orange')
+    # m = visualize_graph(builder.toll_graph, m, 'red')
+    # m = visualize_graph(builder.major_ints_graph, m, 'orange')
     for i, polyline in enumerate(polylines):
         folium.PolyLine(polyline, color=colours[i], weight=3, opacity=0.8,).add_to(m)
 

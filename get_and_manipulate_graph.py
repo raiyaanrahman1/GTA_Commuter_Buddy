@@ -4,6 +4,7 @@ import networkx as nx       # Graph networks library
 import time
 import os
 from typing import Set, List
+from constants import GRAPH_SIMPLIFICATION_DIST
 
 def download_initial_graph():
     ox.settings.use_cache = True # pyright: ignore[reportAttributeAccessIssue]
@@ -98,7 +99,7 @@ def filter_tagged_nodes(G: nx.MultiDiGraph, tag_filter: str) -> nx.MultiDiGraph:
 def get_subgraph_copy(G: nx.MultiDiGraph, node_subset: Set[int]):
     return nx.MultiDiGraph(G.subgraph(node_subset).copy())
 
-def find_major_intersections(G: nx.MultiDiGraph, min_degree: int = 2):
+def find_major_intersections(G: nx.MultiDiGraph, min_degree: int = 1):
     # Highway types considered "major"
     major_highway_types = {"motorway", "trunk", "primary", "secondary"}
 
@@ -141,7 +142,7 @@ def merge_nearby_nodes(
 
     return ox.project_graph(G_simplified, to_crs=crs)
 
-def simplify_node_chain(in_order_node_ids: List[int], graph: nx.MultiDiGraph, min_dist=1000):
+def simplify_node_chain(in_order_node_ids: List[int], graph: nx.MultiDiGraph, min_dist=GRAPH_SIMPLIFICATION_DIST):
     nodes_to_keep = [in_order_node_ids[0]]
     edges_to_keep = []
     prev_node = None

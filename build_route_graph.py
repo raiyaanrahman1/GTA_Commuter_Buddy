@@ -9,6 +9,7 @@ import flexpolyline as fpl
 import numpy as np
 
 from get_and_manipulate_graph import get_subgraph_copy, simplify_node_chain
+from constants import GRAPH_TO_PLINE_MAPPING_DIST
 
 class RouteGraphBuilder:
     def __init__(self) -> None:
@@ -16,15 +17,16 @@ class RouteGraphBuilder:
         self.here_api_key = os.getenv('HERE_API_KEY')
 
         with Timer('Loading graphs', 'Loaded graphs'):
+            self.full_toll_graph = ox.load_graphml('full_toll_graph.graphml')
             self.toll_graph = ox.load_graphml('simplified_toll_graph.graphml')
             self.major_ints_graph = ox.load_graphml('major_intersections_simplified.graphml')
 
-        self.combined_graph = nx.compose(self.major_ints_graph, self.toll_graph)
+        self.combined_graph = nx.MultiDiGraph(nx.compose(self.major_ints_graph, self.toll_graph))
         assert isinstance(self.combined_graph, nx.MultiDiGraph)
-        self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw = self.get_graph_directional_components(self.toll_graph)
+        toll_graph_sw_to_ne, toll_graph_ne_to_sw = self.get_graph_directional_components(self.toll_graph)
         self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw = (
-            get_subgraph_copy(self.toll_graph, self.toll_graph_sw_to_ne),
-            get_subgraph_copy(self.toll_graph, self.toll_graph_ne_to_sw)
+            get_subgraph_copy(self.toll_graph, toll_graph_sw_to_ne),
+            get_subgraph_copy(self.toll_graph, toll_graph_ne_to_sw)
         )
 
 
@@ -45,7 +47,7 @@ class RouteGraphBuilder:
             "origin": origin,
             "destination": destination,
             # "alternatives": 2,
-            "return": "polyline,tolls",
+            "return": "polyline,tolls,summary,actions",
             "apiKey": self.here_api_key
         }
         r = requests.get(url, params=params)
@@ -70,12 +72,9 @@ class RouteGraphBuilder:
             polylines.append(latlon)
 
             self.toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
-            toll_nodes = self.get_route_nodes(latlon, self.toll_graph, 100)
-            route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, 50)
-
-            # print(list(toll_nodes.keys()))
-            # print(list(route_nodes.keys()))
-            # print(set(toll_nodes.keys()).intersection(set(route_nodes.keys())))
+            toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+            # route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, 50)
+            route_nodes = {} # Excluding non-toll nodes for now because some are too close to toll nodes
             route_graph = self.build_route_graph(route_nodes | toll_nodes, self.combined_graph)
 
             route_graphs.append(route_graph)
@@ -87,7 +86,7 @@ class RouteGraphBuilder:
             latlon = [(lat, lon) for lat, lon, *_ in decoded]
             polylines.append(latlon)
 
-            route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, 50)
+            route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, GRAPH_TO_PLINE_MAPPING_DIST)
             print(f'mapped {len(route_nodes)} nodes')
             p2b_mappings.append(route_nodes)
 
