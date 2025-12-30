@@ -3,7 +3,7 @@ import folium
 
 from visualize_graph import setup_folium_graph, visualize_graph
 
-if __name__ == '__main__':
+def test_get_route_graph():
     origin = 43.393262, -79.802492  # Appleby Line entrance
     destination = 43.841385, -79.306418  # Kennedy Rd exit
 
@@ -27,3 +27,9 @@ if __name__ == '__main__':
         folium.PolyLine(polyline, color=colours[i], weight=3, opacity=0.8,).add_to(m)
 
     m.save('route_polylines.html')
+
+    return route_graphs, polylines, origin, destination
+
+
+if __name__ == '__main__':
+    test_get_route_graph()

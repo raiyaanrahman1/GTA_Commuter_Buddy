@@ -2,6 +2,7 @@ import os
 import osmnx as ox          # Open Street Map Networks
 import networkx as nx       # Graph networks library
 import folium               # Interactive map visualization library
+import json
 from get_and_manipulate_graph import (
     download_initial_graph,
     tag_toll_nodes,
@@ -11,7 +12,8 @@ from get_and_manipulate_graph import (
     merge_nearby_nodes,
     get_connected_components_dfs,
     correct_toll_graph,
-    simplify_node_chain
+    simplify_node_chain,
+    get_mapping_of_merged_nodes
 )
 from visualize_graph import visualize_graph, setup_folium_graph
 from timer import Timer
@@ -53,11 +55,18 @@ major_int_graph_simplified = major_int_graph
 
 with Timer('Simplifying major intersection graph', 'Simplified major intersection graph'):
     major_int_graph_simplified = merge_nearby_nodes(major_int_graph, merge_dist=50)
+    node_mapping = get_mapping_of_merged_nodes(major_int_graph, major_int_graph_simplified)
 
 # Step 4: Save graphs and print details
 ox.save_graphml(toll_graph, 'full_toll_graph.graphml')
+ox.save_graphml(major_int_graph, 'major_intersections.graphml')
 ox.save_graphml(major_int_graph_simplified, 'major_intersections_simplified.graphml')
 ox.save_graphml(simplified_toll_graph, 'simplified_toll_graph.graphml')
+
+with Timer('Saving Intersection Simplification Mapping', 'Saved Intersection Simplification Mapping'):
+    with open('intersection_simplification_mapping.json', 'w', encoding='utf-8') as f:
+        json.dump(node_mapping, f, indent=2)
+
 print(f'Length of original full graph: {len(G.nodes)}')
 print(f'Length of toll graph: {len(toll_graph.nodes)}')
 print(f'Length of simplified toll graph: {len(simplified_toll_graph)}')

@@ -3,7 +3,7 @@ import pyproj               # cartographic projections library
 import networkx as nx       # Graph networks library
 import time
 import os
-from typing import Set, List
+from typing import Set, List, Dict
 from constants import GRAPH_SIMPLIFICATION_DIST
 
 def download_initial_graph():
@@ -141,6 +141,42 @@ def merge_nearby_nodes(
     assert isinstance(G_simplified, nx.MultiDiGraph)
 
     return ox.project_graph(G_simplified, to_crs=crs)
+
+def get_mapping_of_merged_nodes(G: nx.MultiDiGraph, G_simplified: nx.MultiDiGraph):
+    # Extract the mapping (New Node ID -> List of Old Node IDs)
+    # The 'osmid_original' attribute can be a single value or a list.
+    # We normalize it to always be a list for consistency.
+    node_mapping: Dict[int, List[int]] = {}
+
+    for node, data in G_simplified.nodes(data=True):
+        original_ids = data.get("osmid_original")
+        
+        # If the node wasn't merged, osmid_original might not exist or be a single value
+        if original_ids is None:
+            # Fallback if attribute is missing (rare, but good for safety)
+            assert False
+            node_mapping[node] = [node]
+        elif isinstance(original_ids, list):
+            node_mapping[node] = original_ids
+        else:
+            # It's a single scalar value (e.g. an int or string)
+            node_mapping[node] = [original_ids]
+
+    # Example: Print first 5 mappings
+    for new_id, old_ids in list(node_mapping.items()):
+        # TODO: print on debug mode only
+        print(f"New Node {new_id} contains original nodes: {old_ids}")
+        for old_id in old_ids:
+            new_x, new_y = G_simplified.nodes[new_id]['x'], G_simplified.nodes[new_id]['y']
+            old_x, old_y = G.nodes[old_id]['x'], G.nodes[old_id]['y']
+            
+            print(f'results for node {new_id}')
+            print(new_x, new_y)
+            print(old_x, old_y)
+            print(ox.distance.great_circle(new_y, new_x, old_y, old_x))
+            print()
+    
+    return node_mapping
 
 def simplify_node_chain(in_order_node_ids: List[int], graph: nx.MultiDiGraph, min_dist=GRAPH_SIMPLIFICATION_DIST):
     nodes_to_keep = [in_order_node_ids[0]]
