@@ -17,12 +17,13 @@ from get_and_manipulate_graph import (
 )
 from visualize_graph import visualize_graph, setup_folium_graph
 from timer import Timer
+from get_directories import INTERMEDIATE_RESULTS_DIR
 from setup_logger import get_logger
 logger = get_logger()
 REDOWNLOAD_GRAPH = False
 
 # Step 1: Get initial graph of GTA area with 407
-initial_graph_file_path = "407_graph.graphml"
+initial_graph_file_path = INTERMEDIATE_RESULTS_DIR / "407_graph.graphml"
 if not os.path.exists(initial_graph_file_path) or REDOWNLOAD_GRAPH:
     G = download_initial_graph()
 else:
@@ -60,13 +61,13 @@ with Timer('Simplifying major intersection graph', 'Simplified major intersectio
     node_mapping = get_mapping_of_merged_nodes(major_int_graph, major_int_graph_simplified)
 
 # Step 4: Save graphs and print details
-ox.save_graphml(toll_graph, 'full_toll_graph.graphml')
-ox.save_graphml(major_int_graph, 'major_intersections.graphml')
-ox.save_graphml(major_int_graph_simplified, 'major_intersections_simplified.graphml')
-ox.save_graphml(simplified_toll_graph, 'simplified_toll_graph.graphml')
+ox.save_graphml(toll_graph, INTERMEDIATE_RESULTS_DIR / 'full_toll_graph.graphml')
+ox.save_graphml(major_int_graph, INTERMEDIATE_RESULTS_DIR / 'major_intersections.graphml')
+ox.save_graphml(major_int_graph_simplified, INTERMEDIATE_RESULTS_DIR / 'major_intersections_simplified.graphml')
+ox.save_graphml(simplified_toll_graph, INTERMEDIATE_RESULTS_DIR / 'simplified_toll_graph.graphml')
 
 with Timer('Saving Intersection Simplification Mapping', 'Saved Intersection Simplification Mapping'):
-    with open('intersection_simplification_mapping.json', 'w', encoding='utf-8') as f:
+    with open(INTERMEDIATE_RESULTS_DIR / 'intersection_simplification_mapping.json', 'w', encoding='utf-8') as f:
         json.dump(node_mapping, f, indent=2)
 
 logger.info(f'Length of original full graph: {len(G.nodes)}')

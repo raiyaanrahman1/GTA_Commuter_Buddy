@@ -11,6 +11,7 @@ from timer import Timer
 import shapely
 from shapely.geometry import LineString, Point
 from shapely.ops import nearest_points
+from get_directories import INTERMEDIATE_RESULTS_DIR
 from setup_logger import get_logger
 logger = get_logger()
 
@@ -19,12 +20,12 @@ HERE_API_KEY = os.getenv('HERE_API_KEY')
 id_maps = []
 
 with Timer('Getting intersection simplification mapping', 'Got intersection simplification mapping'):
-    with open('intersection_simplification_mapping.json', 'r', encoding='utf-8') as f:
+    with open(INTERMEDIATE_RESULTS_DIR / 'intersection_simplification_mapping.json', 'r', encoding='utf-8') as f:
         int_simp_mapping = json.load(f)
         int_simp_mapping = {int(key): value for key, value in int_simp_mapping.items()}
 
 with Timer('Loading graphs', 'Loaded graphs'):
-    major_ints_graph = ox.load_graphml('major_intersections.graphml')
+    major_ints_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'major_intersections.graphml')
 
 def get_closest_point_on_polyline(G: nx.MultiDiGraph, node_id: int, polyline_coords: List[Tuple[float, float]]):
     """
@@ -117,7 +118,7 @@ def get_closest_original_node_to_polyline(route_graph: nx.MultiDiGraph, node_id:
 
 def get_traffic_aware_durations(route_graphs: List[nx.MultiDiGraph], connections, origin, destination, route_polylines: List[List[Tuple]]):
     with Timer('Getting Route Node Mapping', 'Getting Route Node Mapping'):
-        with open('route_node_mappings.json', 'r', encoding='utf-8') as f:
+        with open(INTERMEDIATE_RESULTS_DIR / 'route_node_mappings.json', 'r', encoding='utf-8') as f:
             route_node_mappings = json.load(f)
 
     route_node_mappings = [{int(p_id): ox_id for p_id, ox_id in route_map.items()} for route_map in route_node_mappings]

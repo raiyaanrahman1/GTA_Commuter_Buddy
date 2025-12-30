@@ -12,6 +12,7 @@ import json
 
 from get_and_manipulate_graph import get_subgraph_copy, simplify_node_chain
 from setup_logger import get_logger
+from get_directories import INTERMEDIATE_RESULTS_DIR
 logger = get_logger()
 from constants import GRAPH_TO_PLINE_MAPPING_DIST
 
@@ -21,9 +22,9 @@ class RouteGraphBuilder:
         self.here_api_key = os.getenv('HERE_API_KEY')
 
         with Timer('Loading graphs', 'Loaded graphs'):
-            self.full_toll_graph = ox.load_graphml('full_toll_graph.graphml')
-            self.toll_graph = ox.load_graphml('simplified_toll_graph.graphml')
-            self.major_ints_graph = ox.load_graphml('major_intersections_simplified.graphml')
+            self.full_toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'full_toll_graph.graphml')
+            self.toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'simplified_toll_graph.graphml')
+            self.major_ints_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'major_intersections_simplified.graphml')
 
         self.combined_graph = nx.MultiDiGraph(nx.compose(self.major_ints_graph, self.toll_graph))
         assert isinstance(self.combined_graph, nx.MultiDiGraph)
@@ -108,7 +109,7 @@ class RouteGraphBuilder:
             route_graphs.append(route_graph)
 
         with Timer('Saving Route Node Mapping', 'Saved Route Node Mapping'):
-            with open('route_node_mappings.json', 'w', encoding='utf-8') as f:
+            with open(INTERMEDIATE_RESULTS_DIR / 'route_node_mappings.json', 'w', encoding='utf-8') as f:
                 json.dump(p2b_mappings, f, indent=2)
 
 

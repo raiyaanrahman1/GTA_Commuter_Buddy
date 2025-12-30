@@ -4,6 +4,7 @@ import os
 ox.settings.use_cache = True # pyright: ignore[reportAttributeAccessIssue]
 ox.settings.log_console = False # pyright: ignore[reportAttributeAccessIssue]
 
+from get_directories import INTERMEDIATE_RESULTS_DIR
 from setup_logger import get_logger
 logger = get_logger()
 
@@ -26,7 +27,7 @@ def download_initial_graph():
     filename = "407_graph.graphml"
     logger.info('Saving graph')
     start_time = time.time()
-    ox.save_graphml(G, filename)
+    ox.save_graphml(G, INTERMEDIATE_RESULTS_DIR / filename)
     logger.info(f"Graph saved to {filename} in {time.time() - start_time} s")
 
     # Optional: print file size

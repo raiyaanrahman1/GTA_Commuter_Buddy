@@ -12,3 +12,4 @@ comparison.txt
 written_unused_functions.py
 .env
 logs/
+intermediate_results/
