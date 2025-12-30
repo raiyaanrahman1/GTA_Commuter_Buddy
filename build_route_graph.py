@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 import json
 
 from get_and_manipulate_graph import get_subgraph_copy, simplify_node_chain
+from setup_logger import get_logger
+logger = get_logger()
 from constants import GRAPH_TO_PLINE_MAPPING_DIST
 
 class RouteGraphBuilder:
@@ -66,7 +68,7 @@ class RouteGraphBuilder:
         r.raise_for_status()
         routes = r.json()['routes']
 
-        print(f'Found {len(routes)} routes')
+        logger.info(f'Found {len(routes)} routes')
         route_graphs: List[nx.MultiDiGraph] = []
         polylines: List[List[Tuple]] = []
         p2b_mappings = []
@@ -93,14 +95,14 @@ class RouteGraphBuilder:
             polylines.append(latlon)
 
             route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, GRAPH_TO_PLINE_MAPPING_DIST)
-            print(f'mapped {len(route_nodes)} nodes')
+            logger.info(f'mapped {len(route_nodes)} nodes')
 
             in_order_node_ids = [item[1] for item in sorted(route_nodes.items(), key=lambda item: item[0])]
             nodes_to_keep, _ = simplify_node_chain(in_order_node_ids, self.major_ints_graph)
             nodes_to_keep_set = set(nodes_to_keep)
             nodes_to_keep = {item[0]: item[1] for item in route_nodes.items() if item[1] in nodes_to_keep_set}
             p2b_mappings.append(nodes_to_keep)
-            print(f'simplified chain to {len(nodes_to_keep)} nodes')
+            logger.info(f'simplified chain to {len(nodes_to_keep)} nodes')
 
             route_graph = self.build_route_graph(nodes_to_keep, self.major_ints_graph)
             route_graphs.append(route_graph)
@@ -111,8 +113,8 @@ class RouteGraphBuilder:
 
 
         for i, route_graph in enumerate(route_graphs):
-            print(f'Graph {i + 1}: {len(route_graphs[i].nodes)}')
-            print(list(route_graph.nodes))
+            logger.info(f'Graph {i + 1}: {len(route_graphs[i].nodes)}')
+            logger.info(list(route_graph.nodes))
             
         return route_graphs, polylines
 

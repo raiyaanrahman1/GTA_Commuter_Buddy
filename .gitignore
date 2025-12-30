@@ -11,3 +11,4 @@ output2.txt
 comparison.txt
 written_unused_functions.py
 .env
+logs/

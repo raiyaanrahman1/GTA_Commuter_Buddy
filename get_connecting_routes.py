@@ -11,6 +11,8 @@ from timer import Timer
 import shapely
 from shapely.geometry import LineString, Point
 from shapely.ops import nearest_points
+from setup_logger import get_logger
+logger = get_logger()
 
 load_dotenv()
 HERE_API_KEY = os.getenv('HERE_API_KEY')
@@ -98,16 +100,15 @@ def get_closest_original_node_to_polyline(route_graph: nx.MultiDiGraph, node_id:
     assert node_id in route_node_mappings[route_graph_idx], route_graph_idx
     node_oxid = route_node_mappings[route_graph_idx][node_id]
 
-    # TODO: print in debug mode only
-    print(f'start for {node_oxid}\n')
+    logger.debug(f'start for {node_oxid}\n')
     for original_node_id in int_simp_mapping[node_oxid]:
         new_x, new_y = route_graph.nodes[node_id]['x'], route_graph.nodes[node_id]['y']
         old_x, old_y = major_ints_graph.nodes[original_node_id]['x'], major_ints_graph.nodes[original_node_id]['y']
         
-        print(node_oxid, new_x, new_y)
-        print(original_node_id, old_x, old_y)
-        print(ox.distance.great_circle(new_y, new_x, old_y, old_x))
-        print()
+        logger.debug((node_oxid, new_x, new_y))
+        logger.debug((original_node_id, old_x, old_y))
+        logger.debug(ox.distance.great_circle(new_y, new_x, old_y, old_x))
+        logger.debug('')
 
         closest_x, closest_y, dist = get_closest_point_on_polyline(major_ints_graph, original_node_id, polyline)
         distances.append((closest_x, closest_y, dist, major_ints_graph.nodes[original_node_id]['x'], major_ints_graph.nodes[original_node_id]['y']))
@@ -126,9 +127,8 @@ def get_traffic_aware_durations(route_graphs: List[nx.MultiDiGraph], connections
     destination = f'{destination[0]},{destination[1]}'
     polylines = []
 
-    # TODO: print in debug mode only
-    print(f'*************{len(route_graphs)}')
-    print(f'*************{len(route_polylines)}')
+    logger.debug(f'*************{len(route_graphs)}')
+    logger.debug(f'*************{len(route_polylines)}')
     for i, route_graph in enumerate(route_graphs):
         start_nodes = [node for node in route_graph.nodes if route_graph.in_degree(node) == 0]
         assert len(start_nodes) == 1
@@ -148,11 +148,11 @@ def get_traffic_aware_durations(route_graphs: List[nx.MultiDiGraph], connections
 
                 closest_x, closest_y, dist, node_x, node_y = get_closest_original_node_to_polyline(route_graph, node, route_polylines[i], i, route_node_mappings)
                 
-                print(f'results for node {node}, route_idx {i}')
-                print(route_graph.nodes[node]['x'], route_graph.nodes[node]['y'])
-                print(node_x, node_y)
-                print(closest_x, closest_y, dist)
-                print()
+                logger.debug(f'results for node {node}, route_idx {i}')
+                logger.debug((route_graph.nodes[node]['x'], route_graph.nodes[node]['y']))
+                logger.debug((node_x, node_y))
+                logger.debug((closest_x, closest_y, dist))
+                logger.debug('')
                 waypoints.append(f'{closest_y},{closest_x}')
 
 
@@ -176,7 +176,7 @@ def get_traffic_aware_durations(route_graphs: List[nx.MultiDiGraph], connections
         route = r.json()['routes'][0]
         total = 0
         full_polyline = []
-        for i, section in enumerate(route['sections']):
+        for _, section in enumerate(route['sections']):
             polyline_str = section['polyline']
             polyline_sec = fpl.decode(polyline_str)
             full_polyline += polyline_sec
@@ -186,8 +186,8 @@ def get_traffic_aware_durations(route_graphs: List[nx.MultiDiGraph], connections
             # print(section['summary']['length'])
         polylines.append(full_polyline)
 
-        print(total / 60)
-        print('end of route\n')
+        logger.info(f'non-traffic duration for route {i + 1}: {total / 60}')
+        logger.info('end of route\n')
         # print(len(route['sections']))
         # print(len(r.json()['routes']))
 

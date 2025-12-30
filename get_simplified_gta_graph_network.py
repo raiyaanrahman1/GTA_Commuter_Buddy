@@ -17,6 +17,8 @@ from get_and_manipulate_graph import (
 )
 from visualize_graph import visualize_graph, setup_folium_graph
 from timer import Timer
+from setup_logger import get_logger
+logger = get_logger()
 REDOWNLOAD_GRAPH = False
 
 # Step 1: Get initial graph of GTA area with 407
@@ -67,11 +69,11 @@ with Timer('Saving Intersection Simplification Mapping', 'Saved Intersection Sim
     with open('intersection_simplification_mapping.json', 'w', encoding='utf-8') as f:
         json.dump(node_mapping, f, indent=2)
 
-print(f'Length of original full graph: {len(G.nodes)}')
-print(f'Length of toll graph: {len(toll_graph.nodes)}')
-print(f'Length of simplified toll graph: {len(simplified_toll_graph)}')
-print(f'Major intersections identified: {len(major_intersections)}')
-print(f'Simplified intersections: {len(major_int_graph_simplified)}')
+logger.info(f'Length of original full graph: {len(G.nodes)}')
+logger.info(f'Length of toll graph: {len(toll_graph.nodes)}')
+logger.info(f'Length of simplified toll graph: {len(simplified_toll_graph)}')
+logger.info(f'Major intersections identified: {len(major_intersections)}')
+logger.info(f'Simplified intersections: {len(major_int_graph_simplified)}')
 
 # Step 5: Create a visualization and save it to an html file
 # Create base map centered on the graph
