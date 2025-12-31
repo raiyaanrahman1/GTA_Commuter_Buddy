@@ -1,11 +1,10 @@
 from pathlib import Path
 
-# Get the directory where this script (main.py) is located
-SCRIPT_DIR = Path(__file__).resolve().parent
+# Get the directory where this script (get_directories) is located
+UTILS_DIR = Path(__file__).resolve().parent
 
 # Define the repository root (one level up from src/)
-# ROOT_DIR = SCRIPT_DIR.parent
-ROOT_DIR = SCRIPT_DIR
+ROOT_DIR = UTILS_DIR.parent.parent
 
 # Define the intermediate_results directory (sibling of src/)
 INTERMEDIATE_RESULTS_DIR = ROOT_DIR / "intermediate_results"

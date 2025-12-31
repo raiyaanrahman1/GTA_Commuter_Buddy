@@ -1,7 +1,7 @@
-from build_route_graph import RouteGraphBuilder
 import folium
 
-from visualize_graph import setup_folium_graph, visualize_graph
+from src.build_route_graph import RouteGraphBuilder
+from src.utils.visualize_graph import setup_folium_graph, visualize_graph
 
 def test_get_route_graph():
     origin = 43.393262, -79.802492  # Appleby Line entrance

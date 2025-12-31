@@ -3,7 +3,8 @@ import osmnx as ox          # Open Street Map Networks
 import networkx as nx       # Graph networks library
 import folium               # Interactive map visualization library
 import json
-from get_and_manipulate_graph import (
+
+from src.helpers.get_and_manipulate_graph import (
     download_initial_graph,
     tag_toll_nodes,
     filter_tagged_nodes,
@@ -15,10 +16,11 @@ from get_and_manipulate_graph import (
     simplify_node_chain,
     get_mapping_of_merged_nodes
 )
-from visualize_graph import visualize_graph, setup_folium_graph
-from timer import Timer
-from get_directories import INTERMEDIATE_RESULTS_DIR
-from setup_logger import get_logger
+
+from src.utils.visualize_graph import visualize_graph, setup_folium_graph
+from src.utils.timer import Timer
+from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
+from src.utils.setup_logger import get_logger
 logger = get_logger()
 REDOWNLOAD_GRAPH = False
 

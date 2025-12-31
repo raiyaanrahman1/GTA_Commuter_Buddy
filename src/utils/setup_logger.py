@@ -2,6 +2,8 @@ import logging
 import os
 from datetime import datetime
 
+from src.utils.get_directories import ROOT_DIR
+
 LOGGER_NAME = 'GTA_ROUTING_APP'
 logger_setup = False
 
@@ -17,7 +19,7 @@ def setup_logging():
     time_str = now.strftime('%H-%M-%S')
     
     # Full paths
-    day_dir = os.path.join('logs', f'logs_{date_str}')                  # logs/12--29--2025
+    day_dir = os.path.join(ROOT_DIR / 'logs', f'logs_{date_str}')                  # logs/12--29--2025
     run_dir = os.path.join(day_dir, f'logs_{time_str}')       # logs/12--29--2025/logs_143022
     
     # Create directories (exist_ok handles races safely)

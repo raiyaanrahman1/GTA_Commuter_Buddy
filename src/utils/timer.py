@@ -1,5 +1,5 @@
 import time
-from setup_logger import get_logger
+from src.utils.setup_logger import get_logger
 logger = get_logger()
 
 class Timer:

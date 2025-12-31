@@ -1,7 +1,7 @@
 import folium
-from visualize_graph import setup_folium_graph, visualize_graph
-from test_get_route_graph import test_get_route_graph
-from get_connecting_routes import build_connected_graph, get_traffic_aware_durations
+from testing.test_get_route_graph import test_get_route_graph
+from src.utils.visualize_graph import setup_folium_graph, visualize_graph
+from src.get_connecting_routes import build_connected_graph, get_traffic_aware_durations
 
 def test_connecting_routes():
     route_graphs, route_polylines, origin, destination = test_get_route_graph()
