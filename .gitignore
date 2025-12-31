@@ -1,9 +1,10 @@
-*.graphml
-*.html
+TODO.md
 __pycache__
 cache
 venv
 .DS_Store
-output.txt
 written_unused_functions.py
 .env
+logs/
+intermediate_results/
+testing/test_outputs/

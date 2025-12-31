@@ -1,15 +1,21 @@
 from dotenv import load_dotenv
 import os
-from timer import Timer
 import osmnx as ox
 import networkx as nx
 import requests
 from typing import List, Tuple, Dict, Set
 import flexpolyline as fpl
 import numpy as np
+from datetime import datetime, timezone
+import json
 
-from get_and_manipulate_graph import get_subgraph_copy, simplify_node_chain
-from constants import GRAPH_TO_PLINE_MAPPING_DIST
+from src.helpers.get_and_manipulate_graph import get_subgraph_copy, simplify_node_chain
+
+from src.utils.timer import Timer
+from src.utils.setup_logger import get_logger
+from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
+from src.utils.constants import GRAPH_TO_PLINE_MAPPING_DIST
+logger = get_logger()
 
 class RouteGraphBuilder:
     def __init__(self) -> None:
@@ -17,9 +23,9 @@ class RouteGraphBuilder:
         self.here_api_key = os.getenv('HERE_API_KEY')
 
         with Timer('Loading graphs', 'Loaded graphs'):
-            self.full_toll_graph = ox.load_graphml('full_toll_graph.graphml')
-            self.toll_graph = ox.load_graphml('simplified_toll_graph.graphml')
-            self.major_ints_graph = ox.load_graphml('major_intersections_simplified.graphml')
+            self.full_toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'full_toll_graph.graphml')
+            self.toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'simplified_toll_graph.graphml')
+            self.major_ints_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'major_intersections_simplified.graphml')
 
         self.combined_graph = nx.MultiDiGraph(nx.compose(self.major_ints_graph, self.toll_graph))
         assert isinstance(self.combined_graph, nx.MultiDiGraph)
@@ -40,6 +46,7 @@ class RouteGraphBuilder:
         # Step 1: fetch routes:
         origin = f'{start_lat},{start_lon}'
         destination = f'{end_lat},{end_lon}'
+        departure_time = datetime.now(timezone.utc).isoformat()
 
         url = "https://router.hereapi.com/v8/routes"
         params = {
@@ -48,6 +55,8 @@ class RouteGraphBuilder:
             "destination": destination,
             # "alternatives": 2,
             "return": "polyline,tolls,summary,actions",
+            "routingMode": "fast",
+            "departureTime": departure_time,
             "apiKey": self.here_api_key
         }
         r = requests.get(url, params=params)
@@ -61,9 +70,10 @@ class RouteGraphBuilder:
         r.raise_for_status()
         routes = r.json()['routes']
 
-        print(f'Found {len(routes)} routes')
+        logger.info(f'Found {len(routes)} routes')
         route_graphs: List[nx.MultiDiGraph] = []
         polylines: List[List[Tuple]] = []
+        p2b_mappings = []
 
         for i, route in enumerate(toll_routes):
             polyline_str = route['sections'][0]['polyline']
@@ -73,13 +83,13 @@ class RouteGraphBuilder:
 
             self.toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
             toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+            p2b_mappings.append(toll_nodes)
             # route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, 50)
             route_nodes = {} # Excluding non-toll nodes for now because some are too close to toll nodes
             route_graph = self.build_route_graph(route_nodes | toll_nodes, self.combined_graph)
 
             route_graphs.append(route_graph)
 
-        p2b_mappings = []
         for i, route in enumerate(routes):
             polyline_str = route['sections'][0]['polyline']
             decoded = fpl.decode(polyline_str)  # returns list of (lat, lon[, z])
@@ -87,20 +97,26 @@ class RouteGraphBuilder:
             polylines.append(latlon)
 
             route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, GRAPH_TO_PLINE_MAPPING_DIST)
-            print(f'mapped {len(route_nodes)} nodes')
-            p2b_mappings.append(route_nodes)
+            logger.info(f'mapped {len(route_nodes)} nodes')
 
             in_order_node_ids = [item[1] for item in sorted(route_nodes.items(), key=lambda item: item[0])]
             nodes_to_keep, _ = simplify_node_chain(in_order_node_ids, self.major_ints_graph)
             nodes_to_keep_set = set(nodes_to_keep)
             nodes_to_keep = {item[0]: item[1] for item in route_nodes.items() if item[1] in nodes_to_keep_set}
-            print(f'simplified chain to {len(nodes_to_keep)} nodes')
+            p2b_mappings.append(nodes_to_keep)
+            logger.info(f'simplified chain to {len(nodes_to_keep)} nodes')
 
             route_graph = self.build_route_graph(nodes_to_keep, self.major_ints_graph)
             route_graphs.append(route_graph)
 
+        with Timer('Saving Route Node Mapping', 'Saved Route Node Mapping'):
+            with open(INTERMEDIATE_RESULTS_DIR / 'route_node_mappings.json', 'w', encoding='utf-8') as f:
+                json.dump(p2b_mappings, f, indent=2)
+
+
         for i, route_graph in enumerate(route_graphs):
-            print(f'Graph {i + 1}: {len(route_graphs[i].nodes)}')
+            logger.info(f'Graph {i + 1}: {len(route_graphs[i].nodes)}')
+            logger.info(list(route_graph.nodes))
             
         return route_graphs, polylines
 
@@ -141,6 +157,13 @@ class RouteGraphBuilder:
         selected = sorted(best_map.items(), key=lambda item: item[1][1])
         if not selected:
             assert False # No valid points found
+
+        # NOTE: Code to set graph node x, y values to closest polyline point
+        # Leave commented
+        # for node_id in best_map:
+        #     node = base_graph.nodes[node_id]
+        #     pline_idx = best_map[node_id][1]
+        #     node['x'], node['y'] = lons[pline_idx], lats[pline_idx]
         
         return {item[1]: node_id for node_id, item in selected}
 
