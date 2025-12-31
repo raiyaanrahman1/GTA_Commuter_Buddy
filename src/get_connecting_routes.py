@@ -7,12 +7,13 @@ from dotenv import load_dotenv
 import os
 import flexpolyline as fpl
 import json
-from timer import Timer
 import shapely
 from shapely.geometry import LineString, Point
 from shapely.ops import nearest_points
-from get_directories import INTERMEDIATE_RESULTS_DIR
-from setup_logger import get_logger
+
+from src.utils.timer import Timer
+from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
+from src.utils.setup_logger import get_logger
 logger = get_logger()
 
 load_dotenv()

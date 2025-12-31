@@ -1,7 +1,8 @@
-from build_route_graph import RouteGraphBuilder
 import folium
 
-from visualize_graph import setup_folium_graph, visualize_graph
+from src.build_route_graph import RouteGraphBuilder
+from src.utils.visualize_graph import setup_folium_graph, visualize_graph
+from src.utils.get_directories import TEST_OUTPUTS_FOLDER
 
 def test_get_route_graph():
     origin = 43.393262, -79.802492  # Appleby Line entrance
@@ -18,7 +19,7 @@ def test_get_route_graph():
     for i, graph in enumerate(route_graphs):
         m = visualize_graph(graph, m, colours[i], True, False)
     
-    m.save('route_graphs.html')
+    m.save(TEST_OUTPUTS_FOLDER / 'route_graphs.html')
 
     m = setup_folium_graph(builder.toll_graph)
     # m = visualize_graph(builder.toll_graph, m, 'red')
@@ -26,7 +27,7 @@ def test_get_route_graph():
     for i, polyline in enumerate(polylines):
         folium.PolyLine(polyline, color=colours[i], weight=3, opacity=0.8,).add_to(m)
 
-    m.save('route_polylines.html')
+    m.save(TEST_OUTPUTS_FOLDER / 'route_polylines.html')
 
     return route_graphs, polylines, origin, destination
 

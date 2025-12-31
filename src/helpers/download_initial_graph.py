@@ -4,8 +4,8 @@ import os
 ox.settings.use_cache = True # pyright: ignore[reportAttributeAccessIssue]
 ox.settings.log_console = False # pyright: ignore[reportAttributeAccessIssue]
 
-from get_directories import INTERMEDIATE_RESULTS_DIR
-from setup_logger import get_logger
+from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
+from src.utils.setup_logger import get_logger
 logger = get_logger()
 
 def download_initial_graph():

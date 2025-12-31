@@ -1,6 +1,5 @@
 from dotenv import load_dotenv
 import os
-from timer import Timer
 import osmnx as ox
 import networkx as nx
 import requests
@@ -10,11 +9,13 @@ import numpy as np
 from datetime import datetime, timezone
 import json
 
-from get_and_manipulate_graph import get_subgraph_copy, simplify_node_chain
-from setup_logger import get_logger
-from get_directories import INTERMEDIATE_RESULTS_DIR
+from src.helpers.get_and_manipulate_graph import get_subgraph_copy, simplify_node_chain
+
+from src.utils.timer import Timer
+from src.utils.setup_logger import get_logger
+from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
+from src.utils.constants import GRAPH_TO_PLINE_MAPPING_DIST
 logger = get_logger()
-from constants import GRAPH_TO_PLINE_MAPPING_DIST
 
 class RouteGraphBuilder:
     def __init__(self) -> None:

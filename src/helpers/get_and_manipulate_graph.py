@@ -4,10 +4,10 @@ import networkx as nx       # Graph networks library
 import time
 import os
 from typing import Set, List, Dict
-from constants import GRAPH_SIMPLIFICATION_DIST
 
-from get_directories import INTERMEDIATE_RESULTS_DIR
-from setup_logger import get_logger
+from src.utils.constants import GRAPH_SIMPLIFICATION_DIST
+from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
+from src.utils.setup_logger import get_logger
 logger = get_logger()
 
 def download_initial_graph():
@@ -115,7 +115,7 @@ def find_major_intersections(G: nx.MultiDiGraph, min_degree: int = 1):
             1 for _, _, _, d in edges
             if isinstance(d.get("highway"), str) and d.get('highway') in major_highway_types
             or isinstance(d.get('highway'), list) and any(
-                hw in major_highway_types for hw in d.get('highway')
+                hw in major_highway_types for hw in d.get('highway') # pyright: ignore[reportOptionalIterable]
             )
         )
         
