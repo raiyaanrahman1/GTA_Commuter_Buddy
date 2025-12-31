@@ -1,6 +1,7 @@
 import folium
 from testing.test_get_route_graph import test_get_route_graph
 from src.utils.visualize_graph import setup_folium_graph, visualize_graph
+from src.utils.get_directories import TEST_OUTPUTS_FOLDER
 from src.get_connecting_routes import build_connected_graph, get_traffic_aware_durations
 
 def test_connecting_routes():
@@ -16,7 +17,7 @@ def test_connecting_routes():
     for i, polyline in enumerate(traffic_aware_polylines):
         folium.PolyLine(polyline, color=colours[i], weight=3, opacity=0.8,).add_to(m)
     m = visualize_graph(full_graph, m, 'orange', True)
-    m.save('connected_route_graphs.html')
+    m.save(TEST_OUTPUTS_FOLDER / 'connected_route_graphs.html')
 
 
 if __name__ == '__main__':

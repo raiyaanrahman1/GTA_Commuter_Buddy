@@ -1,7 +1,6 @@
 import os
 import osmnx as ox          # Open Street Map Networks
 import networkx as nx       # Graph networks library
-import folium               # Interactive map visualization library
 import json
 
 from src.helpers.get_and_manipulate_graph import (
@@ -17,7 +16,6 @@ from src.helpers.get_and_manipulate_graph import (
     get_mapping_of_merged_nodes
 )
 
-from src.utils.visualize_graph import visualize_graph, setup_folium_graph
 from src.utils.timer import Timer
 from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
 from src.utils.setup_logger import get_logger
@@ -79,22 +77,7 @@ def get_simplified_gta_graph_network():
     logger.info(f'Major intersections identified: {len(major_intersections)}')
     logger.info(f'Simplified intersections: {len(major_int_graph_simplified)}')
 
-    # Step 5: Create a visualization and save it to an html file
-    # Create base map centered on the graph
-    m = setup_folium_graph(toll_graph)
-    with Timer('Plotting graph', 'Plotted graph'):
-        # m = visualize_graph(G, m, 'gray')
-        # m = visualize_graph(major_int_graph_simplified, m, 'green')
-        # m = visualize_graph(toll_graph, m, 'blue', True, True)
-        toll_graph_comp1 = get_subgraph_copy(simplified_toll_graph, simplified_components[0])
-        toll_graph_comp2 = get_subgraph_copy(simplified_toll_graph, simplified_components[1])
-        m = visualize_graph(toll_graph_comp1, m, 'red')
-        m = visualize_graph(toll_graph_comp2, m, 'purple')
-    m.save('407_tagged_nodes_map.html')
-
-    m = setup_folium_graph(major_int_graph_simplified)
-    m = visualize_graph(major_int_graph_simplified, m, 'green', True)
-    m.save('major_intersections_simplified.html')
+    return toll_graph, major_int_graph, major_int_graph_simplified, simplified_toll_graph, simplified_components
 
 
 

@@ -9,5 +9,8 @@ ROOT_DIR = UTILS_DIR.parent.parent
 # Define the intermediate_results directory (sibling of src/)
 INTERMEDIATE_RESULTS_DIR = ROOT_DIR / "intermediate_results"
 
+TEST_OUTPUTS_FOLDER = ROOT_DIR / "testing" / "test_outputs"
+
 # Ensure the intermediate_results directory exists (create it if needed)
 INTERMEDIATE_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+TEST_OUTPUTS_FOLDER.mkdir(parents=True, exist_ok=True)
