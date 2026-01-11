@@ -181,6 +181,29 @@ def get_mapping_of_merged_nodes(G: nx.MultiDiGraph, G_simplified: nx.MultiDiGrap
     
     return node_mapping
 
+def get_mapping_of_simplified_toll_nodes(full_graph: nx.MultiDiGraph, toll_graph: nx.MultiDiGraph):
+    mapping = {}
+    for node in toll_graph.nodes:
+        assert node in full_graph.nodes
+        mapping[node] = list(full_graph.predecessors(node)) + list(full_graph.successors(node)) + [node]
+    return mapping
+
+def simplify_toll_graph(toll_graph: nx.MultiDiGraph):
+    components_dfs = get_connected_components_dfs(toll_graph)
+    simplified_components = []
+    full_edges_to_keep = []
+    for component in components_dfs:
+        simplified_component, edges_to_keep = simplify_node_chain(component, toll_graph)
+        simplified_components.append(simplified_component)
+        full_edges_to_keep += edges_to_keep
+    simplified_nodes = set(node for component in simplified_components for node in component)
+    simplified_toll_graph = get_subgraph_copy(toll_graph, simplified_nodes)
+    for u, v, len_ in full_edges_to_keep:
+        if v not in simplified_toll_graph[u]:
+            simplified_toll_graph.add_edge(u, v, length=len_)
+
+    return simplified_toll_graph, simplified_components
+
 def simplify_node_chain(in_order_node_ids: List[int], graph: nx.MultiDiGraph, min_dist=GRAPH_SIMPLIFICATION_DIST):
     nodes_to_keep = [in_order_node_ids[0]]
     edges_to_keep = []

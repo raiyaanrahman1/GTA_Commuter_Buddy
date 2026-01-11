@@ -10,10 +10,10 @@ from src.helpers.get_and_manipulate_graph import (
     find_major_intersections,
     get_subgraph_copy,
     merge_nearby_nodes,
-    get_connected_components_dfs,
     correct_toll_graph,
-    simplify_node_chain,
-    get_mapping_of_merged_nodes
+    get_mapping_of_merged_nodes,
+    simplify_toll_graph,
+    get_mapping_of_simplified_toll_nodes
 )
 
 from src.utils.timer import Timer
@@ -39,19 +39,8 @@ def get_simplified_gta_graph_network():
     toll_graph = filter_tagged_nodes(G, 'toll_route')
     correct_toll_graph(toll_graph)
     with Timer('Simplifying toll graph', 'Simplified toll graph'):
-        # simplified_toll_graph = merge_nearby_nodes(toll_graph, merge_dist=300)
-        components_dfs = get_connected_components_dfs(toll_graph)
-        simplified_components = []
-        full_edges_to_keep = []
-        for component in components_dfs:
-            simplified_component, edges_to_keep = simplify_node_chain(component, toll_graph)
-            simplified_components.append(simplified_component)
-            full_edges_to_keep += edges_to_keep
-        simplified_nodes = set(node for component in simplified_components for node in component)
-        simplified_toll_graph = get_subgraph_copy(toll_graph, simplified_nodes)
-        for u, v, len_ in full_edges_to_keep:
-            if v not in simplified_toll_graph[u]:
-                simplified_toll_graph.add_edge(u, v, length=len_)
+        simplified_toll_graph, simplified_components = simplify_toll_graph(toll_graph)
+        toll_node_mapping = get_mapping_of_simplified_toll_nodes(toll_graph, simplified_toll_graph)
 
     major_intersections = find_major_intersections(G)
     major_int_graph = get_subgraph_copy(G, major_intersections)
@@ -70,6 +59,9 @@ def get_simplified_gta_graph_network():
     with Timer('Saving Intersection Simplification Mapping', 'Saved Intersection Simplification Mapping'):
         with open(INTERMEDIATE_RESULTS_DIR / 'intersection_simplification_mapping.json', 'w', encoding='utf-8') as f:
             json.dump(node_mapping, f, indent=2)
+
+        with open(INTERMEDIATE_RESULTS_DIR / 'toll_nodes_simplification_mapping.json', 'w', encoding='utf-8') as f:
+            json.dump(toll_node_mapping, f, indent=2)
 
     logger.info(f'Length of original full graph: {len(G.nodes)}')
     logger.info(f'Length of toll graph: {len(toll_graph.nodes)}')

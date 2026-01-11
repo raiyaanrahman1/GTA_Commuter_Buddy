@@ -19,8 +19,13 @@ class TrafficWaypointsBuilder:
                 int_simp_mapping = json.load(f)
                 self.int_simp_mapping = {int(key): value for key, value in int_simp_mapping.items()}
 
+            with open(INTERMEDIATE_RESULTS_DIR / 'toll_nodes_simplification_mapping.json', 'r', encoding='utf-8') as f:
+                toll_simp_mapping = json.load(f)
+                self.toll_simp_mapping = {int(key): value for key, value in toll_simp_mapping.items()}
+
         with Timer('Loading graphs', 'Loaded graphs'):
             self.major_ints_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'major_intersections.graphml')
+            self.full_toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'full_toll_graph.graphml')
 
     def get_closest_point_on_polyline(self, G: nx.MultiDiGraph, node_id: int, polyline_coords: List[Tuple[float, float]]):
         """
@@ -60,24 +65,33 @@ class TrafficWaypointsBuilder:
         # Return format: Lon (x), Lat (y), Distance (m)
         return closest_point_latlon.x, closest_point_latlon.y, dist_meters # type: ignore
     
-    def get_closest_original_node_to_polyline(self, route_graph: nx.MultiDiGraph, node_id: int, polyline: List[Tuple], route_graph_idx, route_node_mappings):
+    def get_closest_original_node_to_polyline(
+            self,
+            route_graph: nx.MultiDiGraph,
+            original_graph: nx.MultiDiGraph,
+            node_id: int,
+            polyline: List[Tuple],
+            route_graph_idx,
+            route_node_mappings,
+            route_simp_mapping
+        ):
         # Loop through simp_to_nonsimp_map[node_id]
         distances = []
         assert node_id in route_node_mappings[route_graph_idx], route_graph_idx
         node_oxid = route_node_mappings[route_graph_idx][node_id]
 
         logger.debug(f'start for {node_oxid}\n')
-        for original_node_id in self.int_simp_mapping[node_oxid]:
+        for original_node_id in route_simp_mapping[node_oxid]:
             new_x, new_y = route_graph.nodes[node_id]['x'], route_graph.nodes[node_id]['y']
-            old_x, old_y = self.major_ints_graph.nodes[original_node_id]['x'], self.major_ints_graph.nodes[original_node_id]['y']
+            old_x, old_y = original_graph.nodes[original_node_id]['x'], original_graph.nodes[original_node_id]['y']
             
             logger.debug((node_oxid, new_x, new_y))
             logger.debug((original_node_id, old_x, old_y))
             logger.debug(ox.distance.great_circle(new_y, new_x, old_y, old_x))
             logger.debug('')
 
-            closest_x, closest_y, dist = self.get_closest_point_on_polyline(self.major_ints_graph, original_node_id, polyline)
-            distances.append((closest_x, closest_y, dist, self.major_ints_graph.nodes[original_node_id]['x'], self.major_ints_graph.nodes[original_node_id]['y']))
+            closest_x, closest_y, dist = self.get_closest_point_on_polyline(original_graph, original_node_id, polyline)
+            distances.append((closest_x, closest_y, dist, original_graph.nodes[original_node_id]['x'], original_graph.nodes[original_node_id]['y']))
 
         return min(distances, key=lambda dist: dist[2])
     
@@ -99,16 +113,33 @@ class TrafficWaypointsBuilder:
             waypoints = []
             for node in dfs_nodes:
                 if i == 0: # toll graph
-                    # TODO: the inaccurate waypoints still occurs in this scenario
-                    # due to the graph simplification. Fix?
-                    waypoints.append(f'{route_graph.nodes[node]['y']},{route_graph.nodes[node]['x']}')
+                    closest_x, closest_y, dist, node_x, node_y = self.get_closest_original_node_to_polyline(
+                        route_graph,
+                        self.full_toll_graph,
+                        node,
+                        route_polylines[i],
+                        i,
+                        route_node_mappings,
+                        self.toll_simp_mapping
+                    )
+                    waypoints.append(f'{closest_y},{closest_x}')
+
+                    # waypoints.append(f'{route_graph.nodes[node]['y']},{route_graph.nodes[node]['x']}')
                 else:
                     # new_ids = list(id_maps[i].values())
                     # assert len(new_ids) == len(set(new_ids))
                     # reversed_id_map = {value: key for key, value in id_maps[i].items()}
                     # og_node_id = reversed_id_map[node]
 
-                    closest_x, closest_y, dist, node_x, node_y = self.get_closest_original_node_to_polyline(route_graph, node, route_polylines[i], i, route_node_mappings)
+                    closest_x, closest_y, dist, node_x, node_y = self.get_closest_original_node_to_polyline(
+                        route_graph,
+                        self.major_ints_graph,
+                        node,
+                        route_polylines[i],
+                        i,
+                        route_node_mappings,
+                        self.int_simp_mapping
+                    )
                     
                     logger.debug(f'results for node {node}, route_idx {i}')
                     logger.debug((route_graph.nodes[node]['x'], route_graph.nodes[node]['y']))
