@@ -10,7 +10,7 @@ import asyncio
 import aiohttp
 from typing import TypedDict
 
-from src.build_traffic_routing_waypoints import TrafficWaypointsBuilder, StrWaypointsPerRoute
+from src.helpers.build_traffic_routing_waypoints import TrafficWaypointsBuilder, StrWaypointsPerRoute
 
 from src.utils.setup_logger import get_logger
 logger = get_logger()

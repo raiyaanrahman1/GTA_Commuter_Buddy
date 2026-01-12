@@ -1,6 +1,6 @@
 import folium
 
-from src.build_route_graph import RouteGraphBuilder
+from src.build_user_route_graph import RouteGraphBuilder
 from src.utils.visualize_graph import setup_folium_graph, visualize_graph
 from src.utils.get_directories import TEST_OUTPUTS_FOLDER
 

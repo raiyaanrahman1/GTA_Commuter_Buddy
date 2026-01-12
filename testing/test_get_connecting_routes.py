@@ -3,7 +3,7 @@ import seaborn as sns
 from testing.test_get_route_graph import test_get_route_graph
 from src.utils.visualize_graph import setup_folium_graph, visualize_graph
 from src.utils.get_directories import TEST_OUTPUTS_FOLDER
-from src.get_connecting_routes import build_connected_graph, get_traffic_aware_durations
+from src.build_user_traffic_routes import build_connected_graph, get_traffic_aware_durations
 
 def test_connecting_routes():
     route_graphs, route_polylines, origin, destination = test_get_route_graph()
