@@ -12,6 +12,11 @@ from src.utils.setup_logger import get_logger
 logger = get_logger()
 
 
+type NodeWaypointsMap = dict[int, Tuple[float, float]]
+type WaypointsPerRoute = List[NodeWaypointsMap]
+type StrWaypointsPerRoute = List[List[str]]
+
+
 class TrafficWaypointsBuilder:
     def __init__(self) -> None:
         with Timer('Getting intersection simplification mapping', 'Got intersection simplification mapping'):
@@ -104,13 +109,15 @@ class TrafficWaypointsBuilder:
 
         logger.debug(f'*************{len(route_graphs)}')
         logger.debug(f'*************{len(route_polylines)}')
-        all_waypoints = []
+        all_waypoints: StrWaypointsPerRoute = []
+        node_to_waypoints: WaypointsPerRoute = []
         for i, route_graph in enumerate(route_graphs):
             start_nodes = [node for node in route_graph.nodes if route_graph.in_degree(node) == 0]
             assert len(start_nodes) == 1
             start_node = start_nodes[0]
             dfs_nodes = nx.dfs_preorder_nodes(route_graph, start_node)
             waypoints = []
+            node_to_waypoint_map = {}
             for node in dfs_nodes:
                 if i == 0: # toll graph
                     closest_x, closest_y, dist, node_x, node_y = self.get_closest_original_node_to_polyline(
@@ -123,6 +130,7 @@ class TrafficWaypointsBuilder:
                         self.toll_simp_mapping
                     )
                     waypoints.append(f'{closest_y},{closest_x}')
+                    node_to_waypoint_map[node] = (closest_x, closest_y)
 
                     # waypoints.append(f'{route_graph.nodes[node]['y']},{route_graph.nodes[node]['x']}')
                 else:
@@ -146,10 +154,17 @@ class TrafficWaypointsBuilder:
                     logger.debug((node_x, node_y))
                     logger.debug((closest_x, closest_y, dist))
                     logger.debug('')
+
                     waypoints.append(f'{closest_y},{closest_x}')
+                    node_to_waypoint_map[node] = (closest_x, closest_y)
             
+            node_to_waypoints.append(node_to_waypoint_map)
             all_waypoints.append(waypoints)
 
-        return all_waypoints
-
-
+        return all_waypoints, node_to_waypoints
+    
+    def realign_nodes_to_waypoints(self, route_graphs: List[nx.MultiDiGraph], node_to_waypoints: WaypointsPerRoute):
+        for i, route_graph in enumerate(route_graphs):
+            for node in node_to_waypoints[i]:
+                x, y = node_to_waypoints[i][node]
+                route_graph.nodes[node]['x'], route_graph.nodes[node]['y'] = x, y

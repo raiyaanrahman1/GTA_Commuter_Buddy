@@ -1,4 +1,5 @@
 import folium
+import seaborn as sns
 from testing.test_get_route_graph import test_get_route_graph
 from src.utils.visualize_graph import setup_folium_graph, visualize_graph
 from src.utils.get_directories import TEST_OUTPUTS_FOLDER
@@ -7,16 +8,19 @@ from src.get_connecting_routes import build_connected_graph, get_traffic_aware_d
 def test_connecting_routes():
     route_graphs, route_polylines, origin, destination = test_get_route_graph()
     full_graph, connecting_routes = build_connected_graph(route_graphs, origin, destination)
-    connecting_routes = []
     traffic_aware_polylines = get_traffic_aware_durations(route_graphs, connecting_routes, origin, destination, route_polylines)
     
     colours = ['green', 'blue', 'purple']
     m = setup_folium_graph(full_graph)
+
+    num_lines = len(traffic_aware_polylines)
+    colours = sns.color_palette("hls", num_lines).as_hex()
+
     # for i, graph in enumerate(route_graphs):
     #     m = visualize_graph(graph, m, colours[i], True, False)
     for i, polyline in enumerate(traffic_aware_polylines):
         folium.PolyLine(polyline, color=colours[i], weight=3, opacity=0.8,).add_to(m)
-    m = visualize_graph(full_graph, m, 'orange', True)
+    m = visualize_graph(full_graph, m, 'black', True)
     m.save(TEST_OUTPUTS_FOLDER / 'connected_route_graphs.html')
 
 
