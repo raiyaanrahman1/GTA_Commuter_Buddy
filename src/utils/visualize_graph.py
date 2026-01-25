@@ -29,12 +29,14 @@ def visualize_graph(G: nx.MultiDiGraph, map: folium.Map, node_colour, show_edges
             u_data = G.nodes[u]
             v_data = G.nodes[v]
 
+            duration = data.get('duration', None)
             # Create polyline
             line = folium.PolyLine(
                 locations=[(u_data['y'], u_data['x']), (v_data['y'], v_data['x'])],
                 color='black',
                 weight=1,
-                opacity=0.4
+                opacity=0.4,
+                tooltip=duration
             ).add_to(map)
 
             if show_direction:

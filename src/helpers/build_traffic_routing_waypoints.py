@@ -9,6 +9,7 @@ from shapely.ops import nearest_points
 from src.utils.timer import Timer
 from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
 from src.utils.setup_logger import get_logger
+from src.helpers.get_and_manipulate_graph import get_route_in_dfs_order
 logger = get_logger()
 
 
@@ -85,15 +86,15 @@ class TrafficWaypointsBuilder:
         assert node_id in route_node_mappings[route_graph_idx], route_graph_idx
         node_oxid = route_node_mappings[route_graph_idx][node_id]
 
-        logger.debug(f'start for {node_oxid}\n')
+        # logger.debug(f'start for {node_oxid}\n')
         for original_node_id in route_simp_mapping[node_oxid]:
             new_x, new_y = route_graph.nodes[node_id]['x'], route_graph.nodes[node_id]['y']
             old_x, old_y = original_graph.nodes[original_node_id]['x'], original_graph.nodes[original_node_id]['y']
             
-            logger.debug((node_oxid, new_x, new_y))
-            logger.debug((original_node_id, old_x, old_y))
-            logger.debug(ox.distance.great_circle(new_y, new_x, old_y, old_x))
-            logger.debug('')
+            # logger.debug((node_oxid, new_x, new_y))
+            # logger.debug((original_node_id, old_x, old_y))
+            # logger.debug(ox.distance.great_circle(new_y, new_x, old_y, old_x))
+            # logger.debug('')
 
             closest_x, closest_y, dist = self.get_closest_point_on_polyline(original_graph, original_node_id, polyline)
             distances.append((closest_x, closest_y, dist, original_graph.nodes[original_node_id]['x'], original_graph.nodes[original_node_id]['y']))
@@ -107,15 +108,12 @@ class TrafficWaypointsBuilder:
 
         route_node_mappings = [{int(p_id): ox_id for p_id, ox_id in route_map.items()} for route_map in route_node_mappings]
 
-        logger.debug(f'*************{len(route_graphs)}')
-        logger.debug(f'*************{len(route_polylines)}')
+        # logger.debug(f'*************{len(route_graphs)}')
+        # logger.debug(f'*************{len(route_polylines)}')
         all_waypoints: StrWaypointsPerRoute = []
         node_to_waypoints: WaypointsPerRoute = []
         for i, route_graph in enumerate(route_graphs):
-            start_nodes = [node for node in route_graph.nodes if route_graph.in_degree(node) == 0]
-            assert len(start_nodes) == 1
-            start_node = start_nodes[0]
-            dfs_nodes = nx.dfs_preorder_nodes(route_graph, start_node)
+            dfs_nodes = get_route_in_dfs_order(route_graph)
             waypoints = []
             node_to_waypoint_map = {}
             for node in dfs_nodes:
@@ -149,11 +147,11 @@ class TrafficWaypointsBuilder:
                         self.int_simp_mapping
                     )
                     
-                    logger.debug(f'results for node {node}, route_idx {i}')
-                    logger.debug((route_graph.nodes[node]['x'], route_graph.nodes[node]['y']))
-                    logger.debug((node_x, node_y))
-                    logger.debug((closest_x, closest_y, dist))
-                    logger.debug('')
+                    # logger.debug(f'results for node {node}, route_idx {i}')
+                    # logger.debug((route_graph.nodes[node]['x'], route_graph.nodes[node]['y']))
+                    # logger.debug((node_x, node_y))
+                    # logger.debug((closest_x, closest_y, dist))
+                    # logger.debug('')
 
                     waypoints.append(f'{closest_y},{closest_x}')
                     node_to_waypoint_map[node] = (closest_x, closest_y)

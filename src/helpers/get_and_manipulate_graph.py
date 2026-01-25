@@ -287,3 +287,12 @@ def get_connected_components_dfs(graph: nx.MultiDiGraph) -> List[List[int]]:
         result.append(dfs_nodes)
 
     return result
+
+# TODO: memoize? Need graphs to have a unique id? Or maybe just pass in the route idx?
+# Prerequisite: route_graph has a single start and end node
+def get_route_in_dfs_order(route_graph: nx.MultiDiGraph) -> list[int]:
+    start_nodes = [node for node in route_graph.nodes if route_graph.in_degree(node) == 0]
+    assert len(start_nodes) == 1
+    start_node = start_nodes[0]
+    dfs_nodes = nx.dfs_preorder_nodes(route_graph, start_node)
+    return list(dfs_nodes)

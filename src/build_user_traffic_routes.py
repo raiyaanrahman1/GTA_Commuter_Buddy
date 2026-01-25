@@ -8,9 +8,10 @@ import os
 import flexpolyline as fpl
 import asyncio
 import aiohttp
-from typing import TypedDict
 
 from src.helpers.build_traffic_routing_waypoints import TrafficWaypointsBuilder, StrWaypointsPerRoute
+from src.data_structures.connected_route_graph import ConnectedRouteGraph
+from src.types.types import ConnectingRoutesType, IntraRouteSectionData, InterRouteSectionData, PolylineType
 
 from src.utils.setup_logger import get_logger
 logger = get_logger()
@@ -18,26 +19,6 @@ logger = get_logger()
 load_dotenv()
 HERE_API_KEY = os.getenv('HERE_API_KEY')
 ROUTING_URL = "https://router.hereapi.com/v8/routes"
-id_maps = []
-
-class RouteConnection(TypedDict):
-    start_node_id: int
-    start_node_route_idx: int
-    end_node_id: int
-    end_node_route_idx: int
-
-type ConnectingRoutesType = List[RouteConnection]
-
-def relabel_nodes_in_dfs_order(route_graphs: List[nx.MultiDiGraph]):
-    for i, route_graph in enumerate(route_graphs):
-        start_nodes = [node for node in route_graph.nodes if route_graph.in_degree(node) == 0]
-        assert len(start_nodes) == 1
-        start_node = start_nodes[0]
-        dfs_nodes = nx.dfs_preorder_nodes(route_graph, start_node)
-        new_id_mapping = {old_node_id: (i * 10**6) + j for j, old_node_id in enumerate(dfs_nodes)}
-        id_maps.append(new_id_mapping)
-        route_graph.graph['my_id'] = f'G{i}'
-        nx.relabel_nodes(route_graph, new_id_mapping, copy=False)
 
 def get_connecting_routes(route_graphs: List[nx.MultiDiGraph]):
     # relabel_nodes_in_dfs_order(route_graphs)
@@ -73,8 +54,8 @@ def get_traffic_aware_route(
         destination: str,
         waypoints: StrWaypointsPerRoute,
         route_idx: int,
-        polylines: list # TODO: create polyline type
-    ) -> None:
+        polylines: list[PolylineType]
+    ):
     departure_time = datetime.now(timezone.utc).isoformat()
 
     url = ROUTING_URL
@@ -95,13 +76,21 @@ def get_traffic_aware_route(
     route = r.json()['routes'][0]
     total = 0
     full_polyline = []
-    for _, section in enumerate(route['sections']):
+    result: list[IntraRouteSectionData] = []
+    for i, section in enumerate(route['sections']):
         polyline_str = section['polyline']
         polyline_sec = fpl.decode(polyline_str)
         full_polyline += polyline_sec
 
-        total += section['summary']['duration']
-        # print(section['summary']['duration'] / 60)
+        duration = section['summary']['duration']
+        # logger.debug(section)
+        result.append({
+            'section_idx': i,
+            'route_idx': route_idx,
+            'duration': duration            
+        })
+        total += duration
+        # print(duration / 60)
         # print(section['summary']['length'])
     polylines.append(full_polyline)
 
@@ -110,15 +99,18 @@ def get_traffic_aware_route(
     # print(len(route['sections']))
     # print(len(r.json()['routes']))
 
+    # TODO: return polyline instead of modifying it in the function for better transparency
+    return result
+
 async def get_route(
         session: aiohttp.ClientSession,
         origin_str: str,
         dest_str: str,
         origin_node_id: int,
-        origin_route_node: int,
+        origin_route_idx: int,
         dest_node_id: int,
-        dest_route_node: int
-        ):
+        dest_route_idx: int
+        ) -> InterRouteSectionData:
     departure_time = datetime.now(timezone.utc).isoformat()
 
     params = {
@@ -135,15 +127,16 @@ async def get_route(
         # Extract distance/duration from the first section
         route = data['routes'][0]['sections'][0]
         summary = route['summary']
-        polyline = fpl.decode(route['polyline'])
-        return (
-            origin_node_id,
-            origin_route_node,
-            dest_node_id,
-            dest_route_node,
-            summary,
-            polyline
-        )
+        polyline: PolylineType = fpl.decode(route['polyline']) # type: ignore
+        return {
+            'origin_node_id': origin_node_id,
+            'origin_route_idx': origin_route_idx,
+            'dest_node_id': dest_node_id,
+            'dest_route_idx': dest_route_idx,
+            'summary': summary,
+            'polyline': polyline,
+        }
+    assert False
 
 async def get_traffic_aware_connecting_routes_helper(
     connecting_routes: ConnectingRoutesType,
@@ -175,18 +168,19 @@ async def get_traffic_aware_connecting_routes_helper(
     async with aiohttp.ClientSession() as session:
         tasks = [get_route(session, *args) for args in waypoints]
         results = await asyncio.gather(*tasks)
-        for res in results:
-            logger.debug(res)
+        # for res in results:
+        #     logger.debug(res)
         return results
     assert False
 
 def get_traffic_aware_connecting_routes(
         connecting_routes: ConnectingRoutesType,
         route_graphs: List[nx.MultiDiGraph],
-        polylines: list # TODO: create polyline type
-    ) -> None:
+        polylines: list[PolylineType]
+    ):
     results = asyncio.run(get_traffic_aware_connecting_routes_helper(connecting_routes, route_graphs))
-    polylines += [res[-1] for res in results]
+    polylines += [res['polyline'] for res in results]
+    return results
 
 
 def get_traffic_aware_durations(
@@ -203,22 +197,36 @@ def get_traffic_aware_durations(
     origin_str = f'{origin[0]},{origin[1]}'
     destination_str = f'{destination[0]},{destination[1]}'
 
-    polylines = []
+    polylines: list[PolylineType] = []
+    intra_route_section_data: list[IntraRouteSectionData] = []
     for i, _ in enumerate(route_graphs):
-        get_traffic_aware_route(origin_str, destination_str, waypoints, i, polylines)
+        section_data = get_traffic_aware_route(origin_str, destination_str, waypoints, i, polylines)
+        intra_route_section_data += section_data
+
+    inter_route_section_data = get_traffic_aware_connecting_routes(connections, route_graphs, polylines)
+
+    return polylines, intra_route_section_data, inter_route_section_data
     
-    get_traffic_aware_connecting_routes(connections, route_graphs, polylines)
-        
-    return polylines
-    
+def assign_durations_to_graph(
+        connected_graph: ConnectedRouteGraph,
+        intra_route_section_data: list[IntraRouteSectionData],
+        inter_route_section_data: list[InterRouteSectionData]
+    ):
+    for section_data in intra_route_section_data:
+        route_idx = section_data['route_idx']
+        section_idx = section_data['section_idx']
+        start_node_id = connected_graph.route_graph_dfs_node_ids[route_idx][section_idx]
+        end_node_id = connected_graph.route_graph_dfs_node_ids[route_idx][section_idx + 1]
+        connected_graph.graph.edges[start_node_id, end_node_id, 0]['duration'] = section_data['duration']
 
+    for section_data in inter_route_section_data:
+        start_node_id = section_data['origin_node_id']
+        start_route_idx = section_data['origin_route_idx']
+        end_node_id = section_data['dest_node_id']
+        end_route_idx = section_data['dest_route_idx']
 
-def build_connected_graph(route_graphs: List[nx.MultiDiGraph], origin, destination):
-    connecting_routes = get_connecting_routes(route_graphs)
-    full_graph = nx.MultiDiGraph(nx.compose_all(route_graphs))
+        mapped_start_id = connected_graph.id_maps[start_route_idx][start_node_id]
+        mapped_end_id = connected_graph.id_maps[end_route_idx][end_node_id]
 
-    for route_connection in connecting_routes:
-        full_graph.add_edge(route_connection['start_node_id'], route_connection['end_node_id'])
-
-    return full_graph, connecting_routes
+        connected_graph.graph.edges[mapped_start_id, mapped_end_id, 0]['duration'] = section_data['summary']['duration']
 
