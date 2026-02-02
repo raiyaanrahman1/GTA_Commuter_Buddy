@@ -8,6 +8,7 @@ import os
 import flexpolyline as fpl
 import asyncio
 import aiohttp
+import json
 
 from src.helpers.build_traffic_routing_waypoints import TrafficWaypointsBuilder, StrWaypointsPerRoute
 from src.data_structures.connected_route_graph import ConnectedRouteGraph
@@ -65,7 +66,8 @@ def get_traffic_aware_route(
         "destination": destination,
         "via": waypoints[route_idx],
         # "alternatives": 2,
-        "return": "summary,polyline,actions",
+        "return": "summary,polyline,actions,tolls",
+        "tolls[transponders]": "all",
         "routingMode": "fast",
         "departureTime": departure_time,
         "apiKey": HERE_API_KEY
@@ -81,6 +83,8 @@ def get_traffic_aware_route(
         polyline_str = section['polyline']
         polyline_sec = fpl.decode(polyline_str)
         full_polyline += polyline_sec
+
+        logger.debug(json.dumps(section))
 
         duration = section['summary']['duration']
         # logger.debug(section)

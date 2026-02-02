@@ -4,18 +4,25 @@ import networkx as nx       # Graph networks library
 import time
 import os
 from typing import Set, List, Dict
+import re
+# import json
 
 from src.utils.constants import GRAPH_SIMPLIFICATION_DIST
 from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
+from src.public_407_data.interchanges import hwy_407_ref_to_name
 from src.utils.setup_logger import get_logger
 logger = get_logger()
 
 def download_initial_graph():
     ox.settings.use_cache = True # pyright: ignore[reportAttributeAccessIssue]
     ox.settings.log_console = False # pyright: ignore[reportAttributeAccessIssue]
+    ox.settings.useful_tags_way += ['name', 'destination', 'highway', 'ref', 'toll'] # pyright: ignore[reportAttributeAccessIssue]
+    ox.settings.useful_tags_node += ['name', 'destination', 'highway', 'ref'] # pyright: ignore[reportAttributeAccessIssue]
+    # logger.debug(ox.settings.useful_tags_way) # type: ignore
 
-    # Define bounding box (Appleby to Kennedy area)
-    bbox = (-79.85, 43.35, -79.25, 43.95)  # (west, south, east, north)
+    # Bounding Box to cover the entire 407 ETR (Burlington to Pickering)
+    # Format: (west, south, east, north)
+    bbox = (-79.95, 43.30, -79.05, 44.00)
 
     # Download graph
     logger.info('Loading graph')
@@ -36,10 +43,44 @@ def download_initial_graph():
     logger.info(f"Graph saved to {filename} in {time.time() - start_time} s")
 
     # Optional: print file size
-    file_size = os.path.getsize(filename) / (1024 * 1024)
+    file_size = os.path.getsize(INTERMEDIATE_RESULTS_DIR / filename) / (1024 * 1024)
     logger.info(f"File size: {file_size:.2f} MB")
 
     return G
+
+def extract_407_interchanges(G: nx.MultiDiGraph, toll_node_ids: set[int]):
+    mapped_interchanges = []
+
+    for node_id in toll_node_ids:
+        node_data = G.nodes[node_id]
+        # logger.debug(node_data)
+        if node_data.get('highway') != 'motorway_junction':
+            continue
+
+        # 1. Handle the KM (Ref)
+        ref_str = str(node_data.get('ref', ''))
+        if not ref_str:
+            continue
+        # Convert "34B" or "13" to a float
+        km_from_ref = float(re.sub(r'[^0-9.]', '', ref_str))
+
+        closest_official_km = min(hwy_407_ref_to_name.keys(), 
+                                 key=lambda x: abs(x - km_from_ref))
+        
+        if abs(closest_official_km - km_from_ref) < 2.0:
+            mapped_interchanges.append({
+                "official_name": hwy_407_ref_to_name[closest_official_km],
+                "km": closest_official_km,
+                "ref": km_from_ref,
+                "node_id": node_id,
+                "lat": node_data['y'],
+                "lon": node_data['x'],
+            })
+
+    # Deduplicate and sort
+    unique = {i['km']: i for i in mapped_interchanges}.values()
+    return sorted(unique, key=lambda x: x['km'])
+
 
 
 def tag_toll_nodes(G: nx.MultiDiGraph):
@@ -49,17 +90,18 @@ def tag_toll_nodes(G: nx.MultiDiGraph):
     marked_as_toll, ref_407, name_407 = 0, 0, 0
 
     for u, v, k, data in G.edges(keys=True, data=True):
-        if data.get('toll') == 'yes':
-            toll_node_ids.update([u, v])
-            marked_as_toll += 1
-        elif 'ref' in data and '407' in str(data['ref']):
+        if data.get('toll') != 'yes':
+            non_toll_node_ids.update([u, v])
+            continue
+
+        if 'ref' in data and '407' in str(data['ref']):
+            # logger.debug(f'ref: {data=}')
             toll_node_ids.update([u, v])
             ref_407 += 1
         elif 'name' in data and '407' in str(data['name']):
+            # logger.debug(f'name: {data=}')
             toll_node_ids.update([u, v])
             name_407 += 1
-        else:
-            non_toll_node_ids.update([u, v])
         
 
     logger.info(f'\tMarked as toll: {marked_as_toll}')
