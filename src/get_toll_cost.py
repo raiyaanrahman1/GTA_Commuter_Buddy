@@ -146,7 +146,7 @@ def get_toll_cost(
         raise ValueError(f'Invalid direction: {direction}')
     
     start_counting = False
-    result: list[tuple[float, int]] = []
+    trip_interchanges: list[dict] = []
     for i, interchange in enumerate(HWY_407_INTERCHANGES):
 
         if interchange['name'] == starting_interchange:
@@ -157,19 +157,31 @@ def get_toll_cost(
 
         if start_counting:
             distance = HWY_407_INTERCHANGES[i + 1]['ref'] - interchange['ref']
-            result.append((distance, interchange['zone']))
+            trip_interchanges.append({
+                'distance': distance,
+                'zone': interchange['zone'],
+                'portion_start_interchange': interchange['name'],
+                'portion_end_interchange': HWY_407_INTERCHANGES[i + 1]['name']
+            })
 
-    total_distance = float(sum(dist for dist, _ in result))
+    total_distance = float(sum(trip_portion['distance'] for trip_portion in trip_interchanges))
     total_cost = 0.0
     time_elapsed = 0.0
     toronto_tz = ZoneInfo("America/Toronto")
     local_ref = departure_time.astimezone(toronto_tz)
-    for distance_in_interchange, zone in result:
+    cost_per_interchange: list[dict] = []
+    for trip_portion in trip_interchanges:
+        distance_in_interchange = trip_portion['distance']
+        zone = trip_portion['zone']
+        portion_start_interchange = trip_portion['portion_start_interchange']
+        portion_end_interchange = trip_portion['portion_end_interchange']
+
         distance_proportion = distance_in_interchange / total_distance
         time_in_interchange = distance_proportion * trip_duration_seconds
         rate_in_zone = rate_df[rate_df['Zone'] == zone]
 
         remaining_time = time_in_interchange
+        cost_in_interchange = 0.0
         for time_range in time_range_data:
             if remaining_time == 0.0:
                 break
@@ -187,9 +199,15 @@ def get_toll_cost(
 
             duration_in_time_range = min(remaining_time, (end_time - start_time).total_seconds())
             remaining_time -= duration_in_time_range
-            total_cost += distance_in_interchange * rate * duration_in_time_range / time_in_interchange
+            cost_in_interchange += distance_in_interchange * rate * duration_in_time_range / time_in_interchange
+        total_cost += cost_in_interchange
+        cost_per_interchange.append({
+            'portion_start_interchange': portion_start_interchange,
+            'portion_end_interchange': portion_end_interchange,
+            'cost_in_portion': cost_in_interchange
+        })
 
         time_elapsed += time_in_interchange
     
-    return total_cost
+    return total_cost, cost_per_interchange
 
