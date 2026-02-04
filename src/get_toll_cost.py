@@ -1,16 +1,13 @@
-import requests
-import os
-from dotenv import load_dotenv
-import json
 from src.utils.setup_logger import get_logger
-from datetime import datetime
-from typing import Literal, TypedDict, Optional, Dict
+from datetime import datetime, timedelta
+from typing import Literal, TypedDict, Optional
 import pandas as pd
 from pathlib import Path
 import re
 from zoneinfo import ZoneInfo
 
 from src.public_407_data.interchanges import HWY_407_INTERCHANGES
+from src.utils.get_directories import LIGHTWEIGHT_RATES_DIR
 
 logger = get_logger()
 
@@ -97,7 +94,7 @@ def get_rate_data(
     is_weekday = departure_time.weekday() < 5
     day_type: Literal['weekday', 'weekend'] = 'weekday' if is_weekday else 'weekend'
     
-    CSV_DIR: Path = ''  # TODO: add csv dir
+    CSV_DIR: Path = LIGHTWEIGHT_RATES_DIR
     csv_file_name = f'{day_type}_{direction}bound_rates.csv'
     csv = pd.read_csv(CSV_DIR / csv_file_name)
 
@@ -164,10 +161,13 @@ def get_toll_cost(
 
     total_distance = float(sum(dist for dist, _ in result))
     total_cost = 0.0
+    time_elapsed = 0.0
+    toronto_tz = ZoneInfo("America/Toronto")
+    local_ref = departure_time.astimezone(toronto_tz)
     for distance_in_interchange, zone in result:
         distance_proportion = distance_in_interchange / total_distance
         time_in_interchange = distance_proportion * trip_duration_seconds
-        rate_in_zone = rate_df[['Zone' == zone]]
+        rate_in_zone = rate_df[rate_df['Zone'] == zone]
 
         remaining_time = time_in_interchange
         for time_range in time_range_data:
@@ -175,13 +175,21 @@ def get_toll_cost(
                 break
 
             idx = time_range['id']
-            rate = float(rate_in_zone.iat[0, idx])
+            rate = float(rate_in_zone.iat[0, idx]) # type: ignore
 
             start_time = time_range['start_dttm']
             end_time = time_range['end_dttm']
+
+            cur_time = local_ref
+            cur_time = cur_time + timedelta(seconds=time_elapsed)
+            if not (start_time <= cur_time <= end_time):
+                continue
+
             duration_in_time_range = min(remaining_time, (end_time - start_time).total_seconds())
             remaining_time -= duration_in_time_range
             total_cost += distance_in_interchange * rate * duration_in_time_range / time_in_interchange
+
+        time_elapsed += time_in_interchange
     
     return total_cost
 

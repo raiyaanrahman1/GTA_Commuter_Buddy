@@ -4,24 +4,8 @@ from dotenv import load_dotenv
 import json
 from src.utils.setup_logger import get_logger
 from datetime import datetime, timezone
-from src.get_toll_cost import get_toll_cost
-
 
 logger = get_logger()
-
-def test_get_toll_cost():
-    curr_time = datetime.now()
-    result = get_toll_cost('light', curr_time, 'east', 'Trafalgar Rd', 'Highway 401')
-    logger.info(result)
-
-    result = get_toll_cost('light', curr_time, 'west', 'Highway 401', 'Trafalgar Rd')
-    logger.info(result)
-
-    result = get_toll_cost('light', curr_time, 'east', 'QEW / Hwy 403', 'Brock Rd')
-    logger.info(result)
-
-    result = get_toll_cost('light', curr_time, 'west', 'Brock Rd', 'QEW / Hwy 403')
-    logger.info(result)
 
 def playground_test():
     load_dotenv()
