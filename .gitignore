@@ -8,3 +8,4 @@ written_unused_functions.py
 logs/
 intermediate_results/
 testing/test_outputs/
+ignore/

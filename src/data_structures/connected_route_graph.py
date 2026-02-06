@@ -26,7 +26,7 @@ class ConnectedRouteGraph:
         self.connecting_routes = connecting_routes
         self.start_node_id = ORIGIN_ID
         self.end_node_id = DESTINATION_ID
-        self.route_graph_dfs_node_ids = []
+        self.route_graph_dfs_node_ids: list[list[int]] = []
 
         all_nodes_len = sum(len(route_graph.nodes) for route_graph in route_graphs)
         assert len(self.graph.nodes) == all_nodes_len + 2, (len(self.graph.nodes), all_nodes_len)

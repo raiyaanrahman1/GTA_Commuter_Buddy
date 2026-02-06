@@ -69,13 +69,14 @@ def extract_407_interchanges(G: nx.MultiDiGraph, toll_node_ids: set[int]):
         
         if abs(closest_official_km - km_from_ref) < 2.0:
             mapped_interchanges.append({
-                "official_name": hwy_407_ref_to_name[closest_official_km],
+                "interchange_name": hwy_407_ref_to_name[closest_official_km],
                 "km": closest_official_km,
                 "ref": km_from_ref,
                 "node_id": node_id,
                 "lat": node_data['y'],
                 "lon": node_data['x'],
             })
+            G.nodes[node_id]['interchange_name'] = hwy_407_ref_to_name[closest_official_km]
 
     # Deduplicate and sort
     unique = {i['km']: i for i in mapped_interchanges}.values()
@@ -251,7 +252,7 @@ def simplify_node_chain(in_order_node_ids: List[int], graph: nx.MultiDiGraph, mi
     edges_to_keep = []
     prev_node = None
     cur_len = 0
-    for node_id in in_order_node_ids:
+    for i, node_id in enumerate(in_order_node_ids):
         if prev_node is None:
             prev_node = node_id
             continue
@@ -263,7 +264,7 @@ def simplify_node_chain(in_order_node_ids: List[int], graph: nx.MultiDiGraph, mi
             graph.nodes[node_id]['x'],
         )
         cur_len += dist
-        if dist >= min_dist:
+        if dist >= min_dist or i == len(in_order_node_ids) - 1: # Guaruntee last node is added
             nodes_to_keep.append(node_id)
             edges_to_keep.append((prev_node, node_id, cur_len))
             prev_node = node_id

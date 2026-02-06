@@ -9,8 +9,12 @@ import numpy as np
 from datetime import datetime, timezone
 import json
 
-from src.helpers.get_and_manipulate_graph import get_subgraph_copy, simplify_node_chain
-
+from src.helpers.get_and_manipulate_graph import (
+    get_subgraph_copy,
+    simplify_node_chain,
+    simplify_toll_graph,
+    get_mapping_of_simplified_toll_nodes
+)
 from src.utils.timer import Timer
 from src.utils.setup_logger import get_logger
 from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
@@ -24,7 +28,8 @@ class RouteGraphBuilder:
 
         with Timer('Loading graphs', 'Loaded graphs'):
             self.full_toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'full_toll_graph.graphml')
-            self.toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'simplified_toll_graph.graphml')
+            # self.toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'simplified_toll_graph.graphml')
+            self.toll_graph = self.full_toll_graph
             self.major_ints_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'major_intersections_simplified.graphml')
 
         self.combined_graph = nx.MultiDiGraph(nx.compose(self.major_ints_graph, self.toll_graph))
@@ -83,6 +88,15 @@ class RouteGraphBuilder:
 
             self.toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
             toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+            toll_node_ids = set(toll_nodes.values())
+            simp_toll_graph = get_subgraph_copy(self.toll_graph, toll_node_ids)
+            simp_toll_graph, _ = simplify_toll_graph(simp_toll_graph)
+            toll_nodes = self.get_route_nodes(latlon, simp_toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+            toll_node_mapping = get_mapping_of_simplified_toll_nodes(self.toll_graph, simp_toll_graph)
+
+            with open(INTERMEDIATE_RESULTS_DIR / 'toll_nodes_simplification_mapping.json', 'w', encoding='utf-8') as f:
+                json.dump(toll_node_mapping, f, indent=2)
+
             p2b_mappings.append(toll_nodes)
             # route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, 50)
             route_nodes = {} # Excluding non-toll nodes for now because some are too close to toll nodes

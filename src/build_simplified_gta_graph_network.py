@@ -37,15 +37,14 @@ def get_simplified_gta_graph_network():
         G, toll_node_ids, non_toll_node_ids = tag_toll_nodes(G)
 
     interchanges = extract_407_interchanges(G, toll_node_ids)
-    logger.debug(json.dumps(interchanges))
+    # logger.debug(json.dumps(interchanges, indent=2))
 
     # Step 3: Get separate 407 and major intersection graphs and simplify them
     toll_graph = filter_tagged_nodes(G, 'toll_route')
     correct_toll_graph(toll_graph)
     with Timer('Simplifying toll graph', 'Simplified toll graph'):
         simplified_toll_graph, simplified_components = simplify_toll_graph(toll_graph)
-        toll_node_mapping = get_mapping_of_simplified_toll_nodes(toll_graph, simplified_toll_graph)
-
+        
     major_intersections = find_major_intersections(G)
     major_int_graph = get_subgraph_copy(G, major_intersections)
     major_int_graph_simplified = major_int_graph
@@ -63,9 +62,6 @@ def get_simplified_gta_graph_network():
     with Timer('Saving Intersection Simplification Mapping', 'Saved Intersection Simplification Mapping'):
         with open(INTERMEDIATE_RESULTS_DIR / 'intersection_simplification_mapping.json', 'w', encoding='utf-8') as f:
             json.dump(node_mapping, f, indent=2)
-
-        with open(INTERMEDIATE_RESULTS_DIR / 'toll_nodes_simplification_mapping.json', 'w', encoding='utf-8') as f:
-            json.dump(toll_node_mapping, f, indent=2)
 
     logger.info(f'Length of original full graph: {len(G.nodes)}')
     logger.info(f'Length of toll graph: {len(toll_graph.nodes)}')
