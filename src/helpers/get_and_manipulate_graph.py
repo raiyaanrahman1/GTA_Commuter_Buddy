@@ -146,6 +146,36 @@ def filter_tagged_nodes(G: nx.MultiDiGraph, tag_filter: str) -> nx.MultiDiGraph:
 def get_subgraph_copy(G: nx.MultiDiGraph, node_subset: Set[int]):
     return nx.MultiDiGraph(G.subgraph(node_subset).copy())
 
+def prune_toll_graph_non_junction_nodes(toll_graph: nx.MultiDiGraph):
+    components = get_connected_components_dfs(toll_graph)
+    new_edges = []
+    nodes_to_keep = set()
+    for component in components:
+        start_node_is_junction = False
+        cur_len = 0.0
+        start_node_id = -1
+        for i, node_id in enumerate(component):
+            if start_node_is_junction:
+                cur_len += toll_graph.adj[component[i - 1]][node_id][0]['length'] # type: ignore
+            if start_node_is_junction and toll_graph.nodes[node_id].get('highway') == 'motorway_junction':
+                new_edges.append(((start_node_id, node_id), cur_len))
+                cur_len = 0.0
+                start_node_id = node_id
+                nodes_to_keep.add(node_id)
+            if not start_node_is_junction and toll_graph.nodes[node_id].get('highway') == 'motorway_junction':
+                start_node_is_junction = True
+                cur_len = 0.0
+                start_node_id = node_id
+                nodes_to_keep.add(node_id)
+
+    new_toll_graph = get_subgraph_copy(toll_graph, nodes_to_keep)
+    for edge, length in new_edges:
+        u, v = edge
+        if v not in new_toll_graph.adj[u]:
+            new_toll_graph.add_edge(u, v, length=length)
+    
+    return new_toll_graph
+
 def find_major_intersections(G: nx.MultiDiGraph, min_degree: int = 1):
     # Highway types considered "major"
     major_highway_types = {"motorway", "trunk", "primary", "secondary"}
