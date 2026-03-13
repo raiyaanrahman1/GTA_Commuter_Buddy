@@ -46,12 +46,12 @@ class RouteGraphBuilder:
         start_lat: float,
         start_lon: float,
         end_lat: float,
-        end_lon: float
+        end_lon: float,
+        departure_dttm_str: str
     ):
         # Step 1: fetch routes:
         origin = f'{start_lat},{start_lon}'
         destination = f'{end_lat},{end_lon}'
-        departure_time = datetime.now(timezone.utc).isoformat()
 
         url = "https://router.hereapi.com/v8/routes"
         params = {
@@ -61,7 +61,7 @@ class RouteGraphBuilder:
             # "alternatives": 2,
             "return": "polyline,tolls,summary,actions",
             "routingMode": "fast",
-            "departureTime": departure_time,
+            "departureTime": departure_dttm_str,
             "apiKey": self.here_api_key
         }
         r = requests.get(url, params=params)
@@ -88,11 +88,19 @@ class RouteGraphBuilder:
 
             self.toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
             toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
-            toll_node_ids = set(toll_nodes.values())
-            simp_toll_graph = get_subgraph_copy(self.toll_graph, toll_node_ids)
-            simp_toll_graph, _ = simplify_toll_graph(simp_toll_graph)
-            toll_nodes = self.get_route_nodes(latlon, simp_toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
-            toll_node_mapping = get_mapping_of_simplified_toll_nodes(self.toll_graph, simp_toll_graph)
+
+            self.toll_nodes = toll_nodes
+            self.latlon = latlon
+
+            # TODO: remove this constant if it's not being used
+            DO_SIMPLIFICATION = False
+
+            if DO_SIMPLIFICATION:
+                simp_toll_graph = self.simplify_toll_graph()
+                toll_node_mapping = get_mapping_of_simplified_toll_nodes(self.toll_graph, simp_toll_graph)
+                toll_nodes = self.toll_nodes
+            else:
+                toll_node_mapping = {node: [node] for node in self.toll_graph.nodes}
 
             with open(INTERMEDIATE_RESULTS_DIR / 'toll_nodes_simplification_mapping.json', 'w', encoding='utf-8') as f:
                 json.dump(toll_node_mapping, f, indent=2)
@@ -244,4 +252,13 @@ class RouteGraphBuilder:
         elif (lat2 < lat1 and lon2 < lon1):
             return ne_to_sw_graph
         assert False
+
+    # TODO: remove this method if it's not being used
+    def simplify_toll_graph(self):
+        toll_node_ids = set(self.toll_nodes.values())
+        simp_toll_graph = get_subgraph_copy(self.toll_graph, toll_node_ids)
+        simp_toll_graph, _ = simplify_toll_graph(simp_toll_graph)
+        self.toll_nodes = self.get_route_nodes(self.latlon, simp_toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+
+        return simp_toll_graph
     
