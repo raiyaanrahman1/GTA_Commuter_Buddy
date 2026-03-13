@@ -5,12 +5,13 @@ import time
 import os
 from typing import Set, List, Dict
 import re
-# import json
+import json
 
 from src.utils.constants import GRAPH_SIMPLIFICATION_DIST
 from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
 from src.public_407_data.interchanges import hwy_407_ref_to_name
 from src.utils.setup_logger import get_logger
+from src.types.types import InterchangeOfficialToRefMapping
 logger = get_logger()
 
 def download_initial_graph():
@@ -49,7 +50,7 @@ def download_initial_graph():
     return G
 
 def extract_407_interchanges(G: nx.MultiDiGraph, toll_node_ids: set[int]):
-    mapped_interchanges = []
+    mapped_interchanges: list[InterchangeOfficialToRefMapping] = []
 
     for node_id in toll_node_ids:
         node_data = G.nodes[node_id]
@@ -70,13 +71,16 @@ def extract_407_interchanges(G: nx.MultiDiGraph, toll_node_ids: set[int]):
         if abs(closest_official_km - km_from_ref) < 2.0:
             mapped_interchanges.append({
                 "interchange_name": hwy_407_ref_to_name[closest_official_km],
-                "km": closest_official_km,
-                "ref": km_from_ref,
+                "official_km": closest_official_km,
+                "ref_km": km_from_ref,
+                "ref_str": ref_str,
                 "node_id": node_id,
                 "lat": node_data['y'],
                 "lon": node_data['x'],
             })
             G.nodes[node_id]['interchange_name'] = hwy_407_ref_to_name[closest_official_km]
+    return mapped_interchanges
+    logger.info(json.dumps(mapped_interchanges))
 
     # Deduplicate and sort
     unique = {i['km']: i for i in mapped_interchanges}.values()
@@ -164,6 +168,61 @@ def prune_toll_graph_non_junction_nodes(toll_graph: nx.MultiDiGraph):
                 nodes_to_keep.add(node_id)
             if not start_node_is_junction and toll_graph.nodes[node_id].get('highway') == 'motorway_junction':
                 start_node_is_junction = True
+                cur_len = 0.0
+                start_node_id = node_id
+                nodes_to_keep.add(node_id)
+
+    new_toll_graph = get_subgraph_copy(toll_graph, nodes_to_keep)
+    for edge, length in new_edges:
+        u, v = edge
+        if v not in new_toll_graph.adj[u]:
+            new_toll_graph.add_edge(u, v, length=length)
+    
+    return new_toll_graph
+
+def prune_toll_graph_duplicate_interchange_labels(toll_graph: nx.MultiDiGraph, interchanges: list[InterchangeOfficialToRefMapping]):
+    components = get_connected_components_dfs(toll_graph)
+    new_edges = []
+    nodes_to_keep = set()
+
+    int_name_to_ref: dict[str, dict[int, tuple[float, float]]] = {}
+    for x in interchanges:
+        name = x['interchange_name']
+        if name not in int_name_to_ref:
+            int_name_to_ref[name] = {}
+        int_name_to_ref[name][x['node_id']] = (x['official_km'], x['ref_km'])
+        
+    for _, component in enumerate(components):
+        visited_interchanges: dict[str, set[int]] = {}
+        for _, node_id in enumerate(component):
+            if 'interchange_name' not in toll_graph.nodes[node_id]:
+                continue
+            interchange_name: str = toll_graph.nodes[node_id]['interchange_name']
+            if interchange_name not in visited_interchanges:
+                visited_interchanges[interchange_name] = set()
+            visited_interchanges[interchange_name].add(node_id)
+        
+        ints_to_keep = set()
+        for int_name, nodes_in_int in visited_interchanges.items():
+            min_node = min(
+                nodes_in_int, 
+                key=lambda node: abs(int_name_to_ref[int_name][node][0] - int_name_to_ref[int_name][node][1])
+            )
+            ints_to_keep.add(min_node)
+
+        cur_len = 0.0
+        keep_track = False
+        start_node_id = -1
+        for i, node_id in enumerate(component):
+            if keep_track:
+                cur_len += toll_graph.adj[component[i - 1]][node_id][0]['length'] # type: ignore
+            if keep_track and node_id in ints_to_keep:
+                new_edges.append(((start_node_id, node_id), cur_len))
+                cur_len = 0.0
+                start_node_id = node_id
+                nodes_to_keep.add(node_id)
+            elif node_id in ints_to_keep:
+                keep_track = True
                 cur_len = 0.0
                 start_node_id = node_id
                 nodes_to_keep.add(node_id)

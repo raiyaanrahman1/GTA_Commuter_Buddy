@@ -31,3 +31,17 @@ class InterRouteSectionData(TypedDict):
     dest_route_idx: int
     summary: RouteApiSummaryType
     polyline: PolylineType
+
+class InterchangeOfficialToRefMapping(TypedDict):
+    interchange_name: str
+    official_km: float
+    ref_km: float
+    ref_str: str
+    node_id: int
+    lat: float
+    lon: float
+
+class CostPerInterchange(TypedDict):
+    portion_start_interchange: str
+    portion_end_interchange: str
+    cost_in_portion: float

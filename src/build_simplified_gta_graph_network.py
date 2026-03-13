@@ -15,7 +15,8 @@ from src.helpers.get_and_manipulate_graph import (
     simplify_toll_graph,
     get_mapping_of_simplified_toll_nodes,
     extract_407_interchanges,
-    prune_toll_graph_non_junction_nodes
+    prune_toll_graph_non_junction_nodes,
+    prune_toll_graph_duplicate_interchange_labels
 )
 
 from src.utils.timer import Timer
@@ -44,6 +45,7 @@ def get_simplified_gta_graph_network():
     toll_graph = filter_tagged_nodes(G, 'toll_route')
     correct_toll_graph(toll_graph)
     toll_graph = prune_toll_graph_non_junction_nodes(toll_graph)
+    toll_graph = prune_toll_graph_duplicate_interchange_labels(toll_graph, interchanges)
     with Timer('Simplifying toll graph', 'Simplified toll graph'):
         simplified_toll_graph, simplified_components = simplify_toll_graph(toll_graph)
         
