@@ -14,7 +14,8 @@ def setup_folium_graph(G: nx.MultiDiGraph):
 def visualize_graph(G: nx.MultiDiGraph, map: folium.Map, node_colour, show_edges = False, show_direction = False):
     # Plot nodes
     for node, data in G.nodes(data=True):
-        tag = data.get('tag', None)
+        # tag = data.get('tag', None)
+        tag = node
         folium.CircleMarker(
             location=(data['y'], data['x']),
             radius=2,
