@@ -15,6 +15,7 @@ from src.data_structures.connected_route_graph import ConnectedRouteGraph
 from src.types.types import ConnectingRoutesType, IntraRouteSectionData, InterRouteSectionData, PolylineType
 
 from src.utils.setup_logger import get_logger
+from src.get_toll_cost import get_toll_cost
 logger = get_logger()
 
 load_dotenv()
@@ -212,10 +213,10 @@ def get_traffic_aware_durations(
     return polylines, intra_route_section_data, inter_route_section_data
     
 def assign_durations_to_graph(
-        connected_graph: ConnectedRouteGraph,
-        intra_route_section_data: list[IntraRouteSectionData],
-        inter_route_section_data: list[InterRouteSectionData]
-    ):
+    connected_graph: ConnectedRouteGraph,
+    intra_route_section_data: list[IntraRouteSectionData],
+    inter_route_section_data: list[InterRouteSectionData]
+):
     for section_data in intra_route_section_data:
         route_idx = section_data['route_idx']
         section_idx = section_data['section_idx']
@@ -234,3 +235,73 @@ def assign_durations_to_graph(
 
         connected_graph.graph.edges[mapped_start_id, mapped_end_id, 0]['duration'] = section_data['summary']['duration']
 
+def assign_toll_costs_to_graph(
+    connected_graph: ConnectedRouteGraph,
+    departure_time: datetime
+):
+    toll_nodes = connected_graph.route_graph_dfs_node_ids[0][1:-1]
+    start_node = toll_nodes[0]
+    end_node = toll_nodes[-1]
+
+    start_node_data = connected_graph.graph.nodes[start_node]
+    end_node_data = connected_graph.graph.nodes[end_node]
+    
+    start_interchange = start_node_data['interchange_name']
+    end_interchange = end_node_data['interchange_name']
+
+    direction = 'east' if start_node_data['x'] < end_node_data['x'] else 'west'
+
+    # TODO: Change get_toll_cost() to take in duration per interchange
+    duration = sum(
+        float(connected_graph.graph[toll_nodes[i]][toll_nodes[i + 1]][0]['duration']) # type: ignore
+        for i in range(0, len(toll_nodes) - 1)
+    )
+
+    total_cost, cost_per_interchange = get_toll_cost(
+        'light',
+        departure_time,
+        direction,
+        start_interchange,
+        end_interchange,
+        duration
+    )
+    logger.debug(f'{total_cost=} {cost_per_interchange=}')
+
+    i = 0
+    j = i
+    while i < len(toll_nodes) - 1:
+        assert j < len(cost_per_interchange)
+        node_id = toll_nodes[i]
+        portion_start_interchange = cost_per_interchange[j]['portion_start_interchange']
+        portion_end_interchange = cost_per_interchange[j]['portion_end_interchange']
+
+        graph_start_interchange = connected_graph.graph.nodes[node_id]['interchange_name']
+        graph_end_interchange = connected_graph.graph.nodes[toll_nodes[i + 1]]['interchange_name']
+
+        cost = cost_per_interchange[i]['cost_in_portion']
+        if portion_start_interchange == graph_start_interchange and portion_end_interchange != graph_end_interchange:
+            cost = 0.0
+            while True:
+                assert j < len(cost_per_interchange), (graph_start_interchange, graph_end_interchange)
+                portion_end_interchange = cost_per_interchange[j]['portion_end_interchange']
+                cost += cost_per_interchange[j]['cost_in_portion']
+                
+                if portion_end_interchange == graph_end_interchange:
+                    break
+                else:
+                    j += 1
+
+        dt = (portion_start_interchange, graph_start_interchange, portion_end_interchange, graph_end_interchange)
+        
+        assert portion_start_interchange == graph_start_interchange, dt
+        assert portion_end_interchange == graph_end_interchange, (
+            dt,
+            node_id,
+            toll_nodes[i + 1],
+            connected_graph.graph.nodes[node_id],
+            connected_graph.graph.nodes[toll_nodes[i + 1]]
+        )
+
+        connected_graph.graph[node_id][toll_nodes[i + 1]][0]['toll_cost'] = cost # type: ignore
+        i += 1
+        j += 1

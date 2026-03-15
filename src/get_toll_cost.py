@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from src.public_407_data.interchanges import HWY_407_INTERCHANGES
 from src.utils.get_directories import LIGHTWEIGHT_RATES_DIR
+from src.types.types import CostPerInterchange
 
 logger = get_logger()
 
@@ -136,6 +137,7 @@ def get_toll_cost(
     ending_interchange: str,
     trip_duration_seconds: float
 ):
+    # TODO: Change this function to pass in duration per interchange, rather than total duration, and possibly distance per interchange
     rate_df, time_range_data = get_rate_data(vehicle_type, departure_time, direction, trip_duration_seconds)
     validate_starting_ending_interchanges(direction, starting_interchange, ending_interchange)
     
@@ -169,7 +171,7 @@ def get_toll_cost(
     time_elapsed = 0.0
     toronto_tz = ZoneInfo("America/Toronto")
     local_ref = departure_time.astimezone(toronto_tz)
-    cost_per_interchange: list[dict] = []
+    cost_per_interchange: list[CostPerInterchange] = []
     for trip_portion in trip_interchanges:
         distance_in_interchange = trip_portion['distance']
         zone = trip_portion['zone']
