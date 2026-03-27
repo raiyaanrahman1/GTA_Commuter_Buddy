@@ -13,6 +13,7 @@ import json
 from src.helpers.build_traffic_routing_waypoints import TrafficWaypointsBuilder, StrWaypointsPerRoute
 from src.data_structures.connected_route_graph import ConnectedRouteGraph
 from src.types.types import ConnectingRoutesType, IntraRouteSectionData, InterRouteSectionData, PolylineType
+from src.helpers.get_and_manipulate_graph import get_subgraph_copy, simplify_toll_graph
 
 from src.utils.setup_logger import get_logger
 from src.get_toll_cost import get_toll_cost
@@ -21,6 +22,16 @@ logger = get_logger()
 load_dotenv()
 HERE_API_KEY = os.getenv('HERE_API_KEY')
 ROUTING_URL = "https://router.hereapi.com/v8/routes"
+
+def simplify_toll_graph_for_connecting_routes(route_graphs: list[nx.MultiDiGraph]):
+    simp_route_graph = [route_graph for route_graph in route_graphs]
+    simp_toll_graph = get_subgraph_copy(route_graphs[0], set(route_graphs[0].nodes.keys()))
+    simp_toll_graph, _ = simplify_toll_graph(simp_toll_graph)
+    for node in simp_toll_graph:
+        assert node in route_graphs[0].nodes
+    # logger.info((len(simp_toll_graph.nodes), len(route_graphs[0].nodes)))
+    simp_route_graph[0] = simp_toll_graph
+    return simp_route_graph
 
 def get_connecting_routes(route_graphs: List[nx.MultiDiGraph]):
     # relabel_nodes_in_dfs_order(route_graphs)

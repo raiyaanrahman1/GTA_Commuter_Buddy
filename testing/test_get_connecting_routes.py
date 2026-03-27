@@ -3,26 +3,23 @@ import seaborn as sns
 from testing.test_get_route_graph import test_get_route_graph
 from src.utils.visualize_graph import setup_folium_graph, visualize_graph
 from src.utils.get_directories import TEST_OUTPUTS_FOLDER
-from src.build_user_traffic_routes import get_traffic_aware_durations, assign_durations_to_graph, get_connecting_routes, assign_toll_costs_to_graph
+from src.build_user_traffic_routes import (
+    get_traffic_aware_durations,
+    assign_durations_to_graph,
+    get_connecting_routes,
+    assign_toll_costs_to_graph,
+    simplify_toll_graph_for_connecting_routes
+)
 from src.data_structures.connected_route_graph import ConnectedRouteGraph
 from src.utils.setup_logger import get_logger
-from src.helpers.get_and_manipulate_graph import get_subgraph_copy, simplify_toll_graph
 
 logger = get_logger()
 
 def test_connecting_routes():
     route_graphs, route_polylines, origin, destination, departure_dttm, builder = test_get_route_graph()
-    # simp_route_graphs = route_graphs
-    # simp_route_graphs[0] = builder.simplify_toll_graph()
-    # connecting_routes = get_connecting_routes(simp_route_graphs)
-
-    # simp_toll_graph = get_subgraph_copy(route_graphs[0], set(route_graphs[0].nodes.keys()))
-    # simp_toll_graph, _ = simplify_toll_graph(simp_toll_graph)
-    # for node in simp_toll_graph:
-    #     assert node in route_graphs[0].nodes
-    # logger.info((len(simp_toll_graph.nodes), len(route_graphs[0].nodes)))
-
-    connecting_routes = get_connecting_routes(route_graphs)
+    
+    simp_route_graph = simplify_toll_graph_for_connecting_routes(route_graphs)
+    connecting_routes = get_connecting_routes(simp_route_graph)
     traffic_aware_polylines, intra_route_section_data, inter_route_section_data = get_traffic_aware_durations(route_graphs, connecting_routes, origin, destination, route_polylines)
     connected_graph = ConnectedRouteGraph(route_graphs, origin, destination, connecting_routes)
     assign_durations_to_graph(connected_graph, intra_route_section_data, inter_route_section_data)
