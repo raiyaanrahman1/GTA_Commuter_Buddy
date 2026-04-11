@@ -104,8 +104,15 @@ def get_rate_data(
         time_data = parse_time_range(column, departure_time)
         if time_data is not None:
             time_data['id'] = col_idx
+            if time_data['end_dttm'] < time_data['start_dttm']: # e.g. 9 pm to 5 am
+                time_data_copy: TimeRangeParsed = {key: val for key, val in time_data.items()} # type: ignore
+                time_data_copy['end_dttm'] = time_data_copy['end_dttm'].replace(hour=0, minute=0) - timedelta(microseconds=1) + timedelta(days=1)
+                time_range_data.append(time_data_copy)
+
+                time_data['start_dttm'] = time_data['start_dttm'].replace(hour=0, minute=0)
             time_range_data.append(time_data)
 
+    time_range_data.sort(key=lambda val: val['start_dttm'])
     return csv, time_range_data
 
 def validate_starting_ending_interchanges(
@@ -185,7 +192,7 @@ def get_toll_cost(
         remaining_time = time_in_interchange
         cost_in_interchange = 0.0
         for time_range in time_range_data:
-            if remaining_time == 0.0:
+            if remaining_time <= 0:
                 break
 
             idx = time_range['id']
@@ -195,11 +202,14 @@ def get_toll_cost(
             end_time = time_range['end_dttm']
 
             cur_time = local_ref
-            cur_time = cur_time + timedelta(seconds=time_elapsed)
+            cur_time = cur_time + timedelta(seconds=time_elapsed + (time_in_interchange - remaining_time))
+            if cur_time.date() > local_ref.date():
+                cur_time -= timedelta(days=1)
+            
             if not (start_time <= cur_time <= end_time):
                 continue
 
-            duration_in_time_range = min(remaining_time, (end_time - start_time).total_seconds())
+            duration_in_time_range = min(remaining_time, (end_time - cur_time).total_seconds())
             remaining_time -= duration_in_time_range
             cost_in_interchange += distance_in_interchange * rate * duration_in_time_range / time_in_interchange
         total_cost += cost_in_interchange

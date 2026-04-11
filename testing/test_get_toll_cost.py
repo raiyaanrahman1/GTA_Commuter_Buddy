@@ -14,19 +14,44 @@ def test_get_toll_cost():
     total_cost, cost_per_interchange = get_toll_cost('light', curr_time, 'east', 'Trafalgar Rd', 'Highway 401', 10.0*60)
     total_cost = cents_to_dollars(total_cost)
     logger.info(total_cost)
-    logger.info(json.dumps(cost_per_interchange, indent=2))
+    # logger.info(json.dumps(cost_per_interchange, indent=2))
 
     total_cost, cost_per_interchange = get_toll_cost('light', curr_time, 'west', 'Highway 401', 'Trafalgar Rd', 10.0*60)
     total_cost = cents_to_dollars(total_cost)
     logger.info(total_cost)
-    logger.info(json.dumps(cost_per_interchange, indent=2))
+    # logger.info(json.dumps(cost_per_interchange, indent=2))
 
     total_cost, cost_per_interchange = get_toll_cost('light', curr_time, 'east', 'QEW / Hwy 403', 'Brock Rd', 10.0*60)
     total_cost = cents_to_dollars(total_cost)
     logger.info(total_cost)
-    logger.info(json.dumps(cost_per_interchange, indent=2))
+    # logger.info(json.dumps(cost_per_interchange, indent=2))
 
     total_cost, cost_per_interchange = get_toll_cost('light', curr_time, 'west', 'Brock Rd', 'QEW / Hwy 403', 10.0*60)
     total_cost = cents_to_dollars(total_cost)
     logger.info(total_cost)
-    logger.info(json.dumps(cost_per_interchange, indent=2))
+    # logger.info(json.dumps(cost_per_interchange, indent=2))
+
+    evening_dttm = datetime(2026, 4, 8, 23, 59)
+    total_cost, cost_per_interchange = get_toll_cost('light', evening_dttm, 'east', 'Trafalgar Rd', 'Highway 401', 10.0*60)
+    total_cost = cents_to_dollars(total_cost)
+    logger.info(total_cost)
+
+    morning_dttm = datetime(2026, 4, 8, 4, 50)
+    total_cost, cost_per_interchange = get_toll_cost('light', morning_dttm, 'east', 'QEW / Hwy 403', 'Brock Rd', 10.0*60)
+    total_cost = cents_to_dollars(total_cost)
+    logger.info(total_cost)
+
+    morning_dttm = datetime(2026, 4, 8, 5, 0)
+    total_cost, cost_per_interchange = get_toll_cost('light', morning_dttm, 'east', 'QEW / Hwy 403', 'Brock Rd', 10.0*60)
+    total_cost = cents_to_dollars(total_cost)
+    logger.info(total_cost)
+
+    morning_dttm = datetime(2026, 4, 8, 7, 0)
+    total_cost, cost_per_interchange = get_toll_cost('light', morning_dttm, 'east', 'QEW / Hwy 403', 'Brock Rd', 10.0*60)
+    total_cost = cents_to_dollars(total_cost)
+    logger.info(total_cost)
+
+    morning_dttm = datetime(2026, 4, 8, 6, 59)
+    total_cost, cost_per_interchange = get_toll_cost('light', morning_dttm, 'east', 'QEW / Hwy 403', 'Brock Rd', 10.0*60)
+    total_cost = cents_to_dollars(total_cost)
+    logger.info(total_cost)
