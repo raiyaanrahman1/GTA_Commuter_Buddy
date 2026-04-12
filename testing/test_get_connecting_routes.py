@@ -35,7 +35,8 @@ def test_connecting_routes():
         # if i < len(toll_nodes) - 1:
         #     logger.debug(connected_graph.graph.adj[node_id][toll_nodes[i + 1]])
 
-    assign_toll_costs_to_graph(connected_graph, departure_dttm)
+    total_cost = assign_toll_costs_to_graph(connected_graph, departure_dttm)
+    logger.info(f'Total Toll Cost: {total_cost}')
     
     colours = ['green', 'blue', 'purple']
     m = setup_folium_graph(connected_graph.graph)
@@ -50,6 +51,8 @@ def test_connecting_routes():
             folium.PolyLine(polyline, color=colours[i], weight=3, opacity=0.8,tooltip=i).add_to(m)
     m = visualize_graph(connected_graph.graph, m, 'black', True)
     m.save(TEST_OUTPUTS_FOLDER / 'connected_route_graphs.html')
+
+    return connected_graph, intra_route_section_data, inter_route_section_data, traffic_aware_polylines[:3], total_cost
 
 
 if __name__ == '__main__':

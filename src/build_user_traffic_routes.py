@@ -93,7 +93,7 @@ def get_traffic_aware_route(
     result: list[IntraRouteSectionData] = []
     for i, section in enumerate(route['sections']):
         polyline_str = section['polyline']
-        polyline_sec = fpl.decode(polyline_str)
+        polyline_sec: PolylineType = fpl.decode(polyline_str) # type: ignore
         full_polyline += polyline_sec
 
         logger.debug(json.dumps(section))
@@ -103,7 +103,8 @@ def get_traffic_aware_route(
         result.append({
             'section_idx': i,
             'route_idx': route_idx,
-            'duration': duration            
+            'duration': duration,
+            'section_polyline': polyline_sec
         })
         total += duration
         # print(duration / 60)
@@ -136,6 +137,7 @@ async def get_route(
         "return": "summary,polyline,actions",
         "routingMode": "fast",
         "departureTime": departure_time,
+        "avoid[features]": "tollRoad",
         "apiKey": HERE_API_KEY
     }
     async with session.get(ROUTING_URL, params=params) as response:
@@ -316,3 +318,5 @@ def assign_toll_costs_to_graph(
         connected_graph.graph[node_id][toll_nodes[i + 1]][0]['toll_cost'] = cost # type: ignore
         i += 1
         j += 1
+
+    return total_cost

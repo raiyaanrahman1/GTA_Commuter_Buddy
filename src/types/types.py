@@ -12,17 +12,18 @@ class CoordDictType(TypedDict):
     lat: float
     lng: float
 
-class IntraRouteSectionData(TypedDict):
-    section_idx: int
-    route_idx: int
-    duration: int
-
 class RouteApiSummaryType(TypedDict):
     duration: int
     baseDuration: int
     length: int
 
 type PolylineType = list[tuple[float, float]]
+
+class IntraRouteSectionData(TypedDict):
+    section_idx: int
+    route_idx: int
+    duration: int
+    section_polyline: PolylineType
 
 class InterRouteSectionData(TypedDict):
     origin_node_id: int

@@ -3,6 +3,7 @@ from testing.test_get_route_graph import test_get_route_graph
 from testing.test_get_connecting_routes import test_connecting_routes
 from testing.playground_test import playground_test
 from testing.test_get_toll_cost import test_get_toll_cost
+from testing.test_get_best_paths import test_get_best_paths
 import argparse
 
 MIN_STEP = 1
@@ -34,6 +35,8 @@ if mode == TEST_MODE:
             test_connecting_routes()
         case 4:
             test_get_toll_cost()
+        case 5:
+            test_get_best_paths()
         case -1:
             playground_test()
         case _:
