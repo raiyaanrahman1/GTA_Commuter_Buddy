@@ -16,11 +16,11 @@ from src.utils.setup_logger import get_logger
 logger = get_logger()
 
 def test_connecting_routes():
-    route_graphs, route_polylines, origin, destination, departure_dttm, builder = test_get_route_graph()
+    route_graphs, route_polylines, origin, destination, departure_dttm, departure_dttm_str, builder = test_get_route_graph()
     
     simp_route_graph = simplify_toll_graph_for_connecting_routes(route_graphs)
     connecting_routes = get_connecting_routes(simp_route_graph)
-    traffic_aware_polylines, intra_route_section_data, inter_route_section_data = get_traffic_aware_durations(route_graphs, connecting_routes, origin, destination, route_polylines)
+    traffic_aware_polylines, intra_route_section_data, inter_route_section_data = get_traffic_aware_durations(route_graphs, connecting_routes, origin, destination, route_polylines, departure_dttm_str)
     connected_graph = ConnectedRouteGraph(route_graphs, origin, destination, connecting_routes)
     assign_durations_to_graph(connected_graph, intra_route_section_data, inter_route_section_data)
 

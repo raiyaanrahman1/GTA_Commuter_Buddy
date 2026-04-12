@@ -67,10 +67,9 @@ def get_traffic_aware_route(
         destination: str,
         waypoints: StrWaypointsPerRoute,
         route_idx: int,
-        polylines: list[PolylineType]
+        polylines: list[PolylineType],
+        departure_time_str: str
     ):
-    departure_time = datetime.now(timezone.utc).isoformat()
-
     url = ROUTING_URL
     params = {
         "transportMode": "car",
@@ -81,7 +80,7 @@ def get_traffic_aware_route(
         "return": "summary,polyline,actions,tolls",
         "tolls[transponders]": "all",
         "routingMode": "fast",
-        "departureTime": departure_time,
+        "departureTime": departure_time_str,
         "apiKey": HERE_API_KEY
     }
     r = requests.get(url, params=params)
@@ -126,9 +125,9 @@ async def get_route(
         origin_node_id: int,
         origin_route_idx: int,
         dest_node_id: int,
-        dest_route_idx: int
+        dest_route_idx: int,
+        departure_time_str: str
         ) -> InterRouteSectionData:
-    departure_time = datetime.now(timezone.utc).isoformat()
 
     params = {
         "transportMode": "car",
@@ -136,7 +135,7 @@ async def get_route(
         "destination": dest_str,
         "return": "summary,polyline,actions",
         "routingMode": "fast",
-        "departureTime": departure_time,
+        "departureTime": departure_time_str,
         "avoid[features]": "tollRoad",
         "apiKey": HERE_API_KEY
     }
@@ -158,7 +157,8 @@ async def get_route(
 
 async def get_traffic_aware_connecting_routes_helper(
     connecting_routes: ConnectingRoutesType,
-    route_graphs: List[nx.MultiDiGraph]
+    route_graphs: List[nx.MultiDiGraph],
+    departure_time_str: str
 ):
     waypoints: List[tuple] = []
     for route_conn in connecting_routes:
@@ -180,7 +180,8 @@ async def get_traffic_aware_connecting_routes_helper(
             origin_node_id,
             origin_route_idx,
             dest_node_id,
-            dest_route_idx
+            dest_route_idx,
+            departure_time_str
         )
         waypoints.append(waypoint)
     async with aiohttp.ClientSession() as session:
@@ -194,9 +195,10 @@ async def get_traffic_aware_connecting_routes_helper(
 def get_traffic_aware_connecting_routes(
         connecting_routes: ConnectingRoutesType,
         route_graphs: List[nx.MultiDiGraph],
-        polylines: list[PolylineType]
+        polylines: list[PolylineType],
+        departure_time_str: str
     ):
-    results = asyncio.run(get_traffic_aware_connecting_routes_helper(connecting_routes, route_graphs))
+    results = asyncio.run(get_traffic_aware_connecting_routes_helper(connecting_routes, route_graphs, departure_time_str))
     polylines += [res['polyline'] for res in results]
     return results
 
@@ -206,7 +208,8 @@ def get_traffic_aware_durations(
         connections: ConnectingRoutesType,
         origin: tuple[float, float],
         destination: tuple[float, float],
-        route_polylines: List[List[Tuple]]
+        route_polylines: List[List[Tuple]],
+        departure_time_str: str
     ):
     waypoints_builder = TrafficWaypointsBuilder()
     waypoints, node_waypoints_maps = waypoints_builder.build_waypoints(route_graphs, route_polylines)
@@ -218,10 +221,10 @@ def get_traffic_aware_durations(
     polylines: list[PolylineType] = []
     intra_route_section_data: list[IntraRouteSectionData] = []
     for i, _ in enumerate(route_graphs):
-        section_data = get_traffic_aware_route(origin_str, destination_str, waypoints, i, polylines)
+        section_data = get_traffic_aware_route(origin_str, destination_str, waypoints, i, polylines, departure_time_str)
         intra_route_section_data += section_data
 
-    inter_route_section_data = get_traffic_aware_connecting_routes(connections, route_graphs, polylines)
+    inter_route_section_data = get_traffic_aware_connecting_routes(connections, route_graphs, polylines, departure_time_str)
 
     return polylines, intra_route_section_data, inter_route_section_data
     

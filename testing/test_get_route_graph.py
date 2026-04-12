@@ -32,7 +32,7 @@ def test_get_route_graph():
 
     builder = RouteGraphBuilder()
 
-    departure_dttm = datetime.now(timezone.utc)
+    departure_dttm = datetime(2026, 3, 30, 7, 10)
     departure_dttm_str = departure_dttm.isoformat()
     route_graphs, polylines = builder.get_full_route_graph(origin[0], origin[1], destination[0], destination[1], departure_dttm_str)
 
@@ -53,7 +53,7 @@ def test_get_route_graph():
 
     m.save(TEST_OUTPUTS_FOLDER / 'route_polylines.html')
 
-    return route_graphs, polylines, origin, destination, departure_dttm, builder
+    return route_graphs, polylines, origin, destination, departure_dttm, departure_dttm_str, builder
 
 
 if __name__ == '__main__':

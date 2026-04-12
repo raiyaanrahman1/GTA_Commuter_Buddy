@@ -46,3 +46,5 @@ class CostPerInterchange(TypedDict):
     portion_start_interchange: str
     portion_end_interchange: str
     cost_in_portion: float
+
+type PathType = tuple[list[int], int, float]

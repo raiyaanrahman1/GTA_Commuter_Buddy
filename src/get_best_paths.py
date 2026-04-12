@@ -2,6 +2,7 @@ import heapq
 from collections import defaultdict
 import networkx as nx
 from src.data_structures.connected_route_graph import ConnectedRouteGraph
+from src.types.types import PathType
 
 def get_best_paths(conn_graph: ConnectedRouteGraph, budget: float):
     graph = conn_graph.graph
@@ -22,7 +23,7 @@ def get_best_paths(conn_graph: ConnectedRouteGraph, budget: float):
     return n_best_constrained_paths(graph_dict, conn_graph.start_node_id, conn_graph.end_node_id, budget)
 
 
-def n_best_constrained_paths(graph, start, end, budget, n=3):
+def n_best_constrained_paths(graph, start, end, budget, n=3) -> list[PathType]:
     """
     graph: dict {node: [(neighbor, time_cost, money_cost), ...]}
     start, end: node ids
