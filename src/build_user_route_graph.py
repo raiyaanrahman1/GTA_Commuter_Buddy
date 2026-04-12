@@ -21,6 +21,18 @@ from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
 from src.utils.constants import GRAPH_TO_PLINE_MAPPING_DIST
 logger = get_logger()
 
+class NonTollRouteError(Exception):
+    def __init__(self, origin: str, dest: str, message=None, *args):
+        if message is None:
+            message = f'The route from {origin} to {dest} does not need to use Highway 407 ETR'
+        super().__init__(message, *args)
+
+class NodeMappingNotFoundError(Exception):
+    def __init__(self, message=None, *args):
+        if message is None:
+            message = f'No nodes were mapped'
+        super().__init__(message, *args)
+
 class RouteGraphBuilder:
     def __init__(self) -> None:
         load_dotenv()
@@ -87,7 +99,11 @@ class RouteGraphBuilder:
             polylines.append(latlon)
 
             self.toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
-            toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+
+            try:
+                toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+            except NodeMappingNotFoundError:
+                raise NonTollRouteError(origin, destination)
 
             self.toll_nodes = toll_nodes
             self.latlon = latlon
@@ -178,7 +194,9 @@ class RouteGraphBuilder:
         # Sort selected nodes by their order along the polyline
         selected = sorted(best_map.items(), key=lambda item: item[1][1])
         if not selected:
-            assert False # No valid points found
+            raise NodeMappingNotFoundError # None of the distances were <= max_dist
+        
+        selected_distances = [dist for (_, (dist, _)) in selected]
 
         # NOTE: Code to set graph node x, y values to closest polyline point
         # Leave commented
