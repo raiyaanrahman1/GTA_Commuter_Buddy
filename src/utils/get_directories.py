@@ -11,6 +11,10 @@ INTERMEDIATE_RESULTS_DIR = ROOT_DIR / "intermediate_results"
 
 TEST_OUTPUTS_FOLDER = ROOT_DIR / "testing" / "test_outputs"
 
+SOURCE_DIR = ROOT_DIR / "src"
+
+LIGHTWEIGHT_RATES_DIR = SOURCE_DIR / "public_407_data" / "lightweight_vehicle_rates"
+
 # Ensure the intermediate_results directory exists (create it if needed)
 INTERMEDIATE_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 TEST_OUTPUTS_FOLDER.mkdir(parents=True, exist_ok=True)

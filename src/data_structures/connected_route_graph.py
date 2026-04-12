@@ -26,7 +26,7 @@ class ConnectedRouteGraph:
         self.connecting_routes = connecting_routes
         self.start_node_id = ORIGIN_ID
         self.end_node_id = DESTINATION_ID
-        self.route_graph_dfs_node_ids = []
+        self.route_graph_dfs_node_ids: list[list[int]] = []
 
         all_nodes_len = sum(len(route_graph.nodes) for route_graph in route_graphs)
         assert len(self.graph.nodes) == all_nodes_len + 2, (len(self.graph.nodes), all_nodes_len)
@@ -93,7 +93,7 @@ class ConnectedRouteGraph:
         return full_graph
         
     def relabel_nodes_in_dfs_order(self, route_graphs: list[nx.MultiDiGraph]):
-        id_maps = []
+        id_maps: list[dict[int, int]] = []
         for i, route_graph in enumerate(route_graphs):
             dfs_nodes = get_route_in_dfs_order(route_graph)
             new_id_mapping = {old_node_id: ((i + 1) * 10**6) + j for j, old_node_id in enumerate(dfs_nodes)}

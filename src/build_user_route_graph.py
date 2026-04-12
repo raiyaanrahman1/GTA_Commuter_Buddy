@@ -9,13 +9,29 @@ import numpy as np
 from datetime import datetime, timezone
 import json
 
-from src.helpers.get_and_manipulate_graph import get_subgraph_copy, simplify_node_chain
-
+from src.helpers.get_and_manipulate_graph import (
+    get_subgraph_copy,
+    simplify_node_chain,
+    simplify_toll_graph,
+    get_mapping_of_simplified_toll_nodes
+)
 from src.utils.timer import Timer
 from src.utils.setup_logger import get_logger
 from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
 from src.utils.constants import GRAPH_TO_PLINE_MAPPING_DIST
 logger = get_logger()
+
+class NonTollRouteError(Exception):
+    def __init__(self, origin: str, dest: str, message=None, *args):
+        if message is None:
+            message = f'The route from {origin} to {dest} does not need to use Highway 407 ETR'
+        super().__init__(message, *args)
+
+class NodeMappingNotFoundError(Exception):
+    def __init__(self, message=None, *args):
+        if message is None:
+            message = f'No nodes were mapped'
+        super().__init__(message, *args)
 
 class RouteGraphBuilder:
     def __init__(self) -> None:
@@ -24,7 +40,8 @@ class RouteGraphBuilder:
 
         with Timer('Loading graphs', 'Loaded graphs'):
             self.full_toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'full_toll_graph.graphml')
-            self.toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'simplified_toll_graph.graphml')
+            # self.toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'simplified_toll_graph.graphml')
+            self.toll_graph = self.full_toll_graph
             self.major_ints_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'major_intersections_simplified.graphml')
 
         self.combined_graph = nx.MultiDiGraph(nx.compose(self.major_ints_graph, self.toll_graph))
@@ -41,12 +58,12 @@ class RouteGraphBuilder:
         start_lat: float,
         start_lon: float,
         end_lat: float,
-        end_lon: float
+        end_lon: float,
+        departure_dttm_str: str
     ):
         # Step 1: fetch routes:
         origin = f'{start_lat},{start_lon}'
         destination = f'{end_lat},{end_lon}'
-        departure_time = datetime.now(timezone.utc).isoformat()
 
         url = "https://router.hereapi.com/v8/routes"
         params = {
@@ -56,7 +73,7 @@ class RouteGraphBuilder:
             # "alternatives": 2,
             "return": "polyline,tolls,summary,actions",
             "routingMode": "fast",
-            "departureTime": departure_time,
+            "departureTime": departure_dttm_str,
             "apiKey": self.here_api_key
         }
         r = requests.get(url, params=params)
@@ -82,7 +99,28 @@ class RouteGraphBuilder:
             polylines.append(latlon)
 
             self.toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
-            toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+
+            try:
+                toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+            except NodeMappingNotFoundError:
+                raise NonTollRouteError(origin, destination)
+
+            self.toll_nodes = toll_nodes
+            self.latlon = latlon
+
+            # TODO: remove this constant if it's not being used
+            DO_SIMPLIFICATION = False
+
+            if DO_SIMPLIFICATION:
+                simp_toll_graph = self.simplify_toll_graph()
+                toll_node_mapping = get_mapping_of_simplified_toll_nodes(self.toll_graph, simp_toll_graph)
+                toll_nodes = self.toll_nodes
+            else:
+                toll_node_mapping = {node: [node] for node in self.toll_graph.nodes}
+
+            with open(INTERMEDIATE_RESULTS_DIR / 'toll_nodes_simplification_mapping.json', 'w', encoding='utf-8') as f:
+                json.dump(toll_node_mapping, f, indent=2)
+
             p2b_mappings.append(toll_nodes)
             # route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, 50)
             route_nodes = {} # Excluding non-toll nodes for now because some are too close to toll nodes
@@ -156,7 +194,9 @@ class RouteGraphBuilder:
         # Sort selected nodes by their order along the polyline
         selected = sorted(best_map.items(), key=lambda item: item[1][1])
         if not selected:
-            assert False # No valid points found
+            raise NodeMappingNotFoundError # None of the distances were <= max_dist
+        
+        selected_distances = [dist for (_, (dist, _)) in selected]
 
         # NOTE: Code to set graph node x, y values to closest polyline point
         # Leave commented
@@ -230,4 +270,13 @@ class RouteGraphBuilder:
         elif (lat2 < lat1 and lon2 < lon1):
             return ne_to_sw_graph
         assert False
+
+    # TODO: remove this method if it's not being used
+    def simplify_toll_graph(self):
+        toll_node_ids = set(self.toll_nodes.values())
+        simp_toll_graph = get_subgraph_copy(self.toll_graph, toll_node_ids)
+        simp_toll_graph, _ = simplify_toll_graph(simp_toll_graph)
+        self.toll_nodes = self.get_route_nodes(self.latlon, simp_toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
+
+        return simp_toll_graph
     
