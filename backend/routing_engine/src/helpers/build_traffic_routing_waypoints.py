@@ -6,10 +6,10 @@ import shapely
 from shapely.geometry import LineString, Point
 from shapely.ops import nearest_points
 
-from src.utils.timer import Timer
-from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
-from src.utils.setup_logger import get_logger
-from src.helpers.get_and_manipulate_graph import get_route_in_dfs_order
+from routing_engine.src.utils.timer import Timer
+from routing_engine.src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
+from routing_engine.src.utils.setup_logger import get_logger
+from routing_engine.src.helpers.get_and_manipulate_graph import get_route_in_dfs_order
 logger = get_logger()
 
 

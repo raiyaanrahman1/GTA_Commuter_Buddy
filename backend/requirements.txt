@@ -12,6 +12,7 @@ folium==0.20.0
 fonttools==4.58.5
 frozenlist==1.8.0
 geopandas==1.1.0
+-e git+https://github.com/raiyaanrahman1/GTA_Commuter_Buddy.git@478e2234ca41186e60e21bc99bc1b4d776454005#egg=gta_commuter_buddy&subdirectory=backend
 idna==3.10
 Jinja2==3.1.6
 joblib==1.5.2

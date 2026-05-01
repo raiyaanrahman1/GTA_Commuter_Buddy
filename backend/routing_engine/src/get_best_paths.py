@@ -1,8 +1,8 @@
 import heapq
 from collections import defaultdict
 import networkx as nx
-from src.data_structures.connected_route_graph import ConnectedRouteGraph
-from src.types.types import PathType
+from routing_engine.src.data_structures.connected_route_graph import ConnectedRouteGraph
+from routing_engine.src.types.types import PathType
 
 def get_best_paths(conn_graph: ConnectedRouteGraph, budget: float):
     graph = conn_graph.graph

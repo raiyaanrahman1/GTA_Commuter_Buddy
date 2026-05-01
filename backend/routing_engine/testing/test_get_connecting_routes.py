@@ -1,17 +1,17 @@
 import folium
 import seaborn as sns
-from testing.test_get_route_graph import test_get_route_graph
-from src.utils.visualize_graph import setup_folium_graph, visualize_graph
-from src.utils.get_directories import TEST_OUTPUTS_FOLDER
-from src.build_user_traffic_routes import (
+from test_get_route_graph import test_get_route_graph
+from routing_engine.src.utils.visualize_graph import setup_folium_graph, visualize_graph
+from routing_engine.src.utils.get_directories import TEST_OUTPUTS_FOLDER
+from routing_engine.src.build_user_traffic_routes import (
     get_traffic_aware_durations,
     assign_durations_to_graph,
     get_connecting_routes,
     assign_toll_costs_to_graph,
     simplify_toll_graph_for_connecting_routes
 )
-from src.data_structures.connected_route_graph import ConnectedRouteGraph
-from src.utils.setup_logger import get_logger
+from routing_engine.src.data_structures.connected_route_graph import ConnectedRouteGraph
+from routing_engine.src.utils.setup_logger import get_logger
 
 logger = get_logger()
 

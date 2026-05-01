@@ -10,13 +10,13 @@ import asyncio
 import aiohttp
 import json
 
-from src.helpers.build_traffic_routing_waypoints import TrafficWaypointsBuilder, StrWaypointsPerRoute
-from src.data_structures.connected_route_graph import ConnectedRouteGraph
-from src.types.types import ConnectingRoutesType, IntraRouteSectionData, InterRouteSectionData, PolylineType
-from src.helpers.get_and_manipulate_graph import get_subgraph_copy, simplify_toll_graph
+from routing_engine.src.helpers.build_traffic_routing_waypoints import TrafficWaypointsBuilder, StrWaypointsPerRoute
+from routing_engine.src.data_structures.connected_route_graph import ConnectedRouteGraph
+from routing_engine.src.types.types import ConnectingRoutesType, IntraRouteSectionData, InterRouteSectionData, PolylineType
+from routing_engine.src.helpers.get_and_manipulate_graph import get_subgraph_copy, simplify_toll_graph
 
-from src.utils.setup_logger import get_logger
-from src.get_toll_cost import get_toll_cost
+from routing_engine.src.utils.setup_logger import get_logger
+from routing_engine.src.get_toll_cost import get_toll_cost
 logger = get_logger()
 
 load_dotenv()

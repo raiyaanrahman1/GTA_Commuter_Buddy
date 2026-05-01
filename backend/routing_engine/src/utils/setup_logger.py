@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import datetime
 
-from src.utils.get_directories import ROOT_DIR
+from routing_engine.src.utils.get_directories import ROOT_DIR
 
 LOGGER_NAME = 'GTA_ROUTING_APP'
 logger_setup = False

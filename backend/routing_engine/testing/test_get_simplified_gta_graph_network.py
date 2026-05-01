@@ -1,8 +1,8 @@
-from src.utils.visualize_graph import visualize_graph, setup_folium_graph
-from src.utils.timer import Timer
-from src.build_simplified_gta_graph_network import get_simplified_gta_graph_network
-from src.helpers.get_and_manipulate_graph import get_subgraph_copy
-from src.utils.get_directories import TEST_OUTPUTS_FOLDER
+from routing_engine.src.utils.visualize_graph import visualize_graph, setup_folium_graph
+from routing_engine.src.utils.timer import Timer
+from routing_engine.src.build_simplified_gta_graph_network import get_simplified_gta_graph_network
+from routing_engine.src.helpers.get_and_manipulate_graph import get_subgraph_copy
+from routing_engine.src.utils.get_directories import TEST_OUTPUTS_FOLDER
 
 def test_get_simplified_gta_graph_network():
     (

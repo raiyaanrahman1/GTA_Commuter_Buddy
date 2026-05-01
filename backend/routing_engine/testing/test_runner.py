@@ -1,10 +1,10 @@
-from testing.test_get_simplified_gta_graph_network import test_get_simplified_gta_graph_network
-from testing.test_get_route_graph import test_get_route_graph, test_non_toll_route
-from testing.test_get_connecting_routes import test_connecting_routes
-from testing.playground_test import playground_test
-from testing.test_get_toll_cost import test_get_toll_cost
-from testing.test_get_best_paths import test_get_best_paths
-from testing.test_get_user_routes_and_best_path import test_get_user_routes_and_best_path
+from test_get_simplified_gta_graph_network import test_get_simplified_gta_graph_network
+from test_get_route_graph import test_get_route_graph, test_non_toll_route
+from test_get_connecting_routes import test_connecting_routes
+from playground_test import playground_test
+from test_get_toll_cost import test_get_toll_cost
+from test_get_best_paths import test_get_best_paths
+from test_get_user_routes_and_best_path import test_get_user_routes_and_best_path
 import argparse
 
 MIN_STEP = 1

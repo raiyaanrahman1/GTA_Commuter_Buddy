@@ -9,3 +9,4 @@ logs/
 intermediate_results/
 backend/routing_engine/testing/test_outputs/
 ignore/
+*.egg-info/

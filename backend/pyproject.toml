@@ -1,0 +1,7 @@
+[project]
+name = "gta-commuter-buddy"
+version = "0.1.0"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["routing_engine.src"]

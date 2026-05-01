@@ -2,7 +2,7 @@ import requests
 import os
 from dotenv import load_dotenv
 import json
-from src.utils.setup_logger import get_logger
+from routing_engine.src.utils.setup_logger import get_logger
 from datetime import datetime, timezone
 
 logger = get_logger()

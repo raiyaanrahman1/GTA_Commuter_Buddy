@@ -1,6 +1,6 @@
-from src.types.types import IntraRouteSectionData, InterRouteSectionData, PolylineType
-from src.data_structures.connected_route_graph import ConnectedRouteGraph
-from src.types.types import PathType
+from routing_engine.src.types.types import IntraRouteSectionData, InterRouteSectionData, PolylineType
+from routing_engine.src.data_structures.connected_route_graph import ConnectedRouteGraph
+from routing_engine.src.types.types import PathType
 
 def map_route_polylines(
         intra_route_data: list[IntraRouteSectionData],

@@ -2,15 +2,15 @@ import folium
 import seaborn as sns
 import json
 
-from testing.test_get_connecting_routes import test_connecting_routes
+from test_get_connecting_routes import test_connecting_routes
 
-from src.get_best_paths import get_best_paths
-from src.types.types import PolylineType
-from src.data_structures.connected_route_graph import ConnectedRouteGraph
-from src.utils.visualize_graph import setup_folium_graph
-from src.utils.get_directories import TEST_OUTPUTS_FOLDER
-from src.utils.setup_logger import get_logger
-from src.helpers.get_best_path_polylines import get_best_path_polylines
+from routing_engine.src.get_best_paths import get_best_paths
+from routing_engine.src.types.types import PolylineType
+from routing_engine.src.data_structures.connected_route_graph import ConnectedRouteGraph
+from routing_engine.src.utils.visualize_graph import setup_folium_graph
+from routing_engine.src.utils.get_directories import TEST_OUTPUTS_FOLDER
+from routing_engine.src.utils.setup_logger import get_logger
+from routing_engine.src.helpers.get_best_path_polylines import get_best_path_polylines
 
 logger = get_logger()
 

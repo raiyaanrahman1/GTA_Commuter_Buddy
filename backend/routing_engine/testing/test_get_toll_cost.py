@@ -1,8 +1,8 @@
-from src.utils.setup_logger import get_logger
+from routing_engine.src.utils.setup_logger import get_logger
 from datetime import datetime
 import json
 
-from src.get_toll_cost import get_toll_cost
+from routing_engine.src.get_toll_cost import get_toll_cost
 logger = get_logger()
 
 def cents_to_dollars(cents: float):

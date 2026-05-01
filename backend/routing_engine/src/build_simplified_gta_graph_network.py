@@ -3,7 +3,7 @@ import osmnx as ox          # Open Street Map Networks
 import networkx as nx       # Graph networks library
 import json
 
-from src.helpers.get_and_manipulate_graph import (
+from routing_engine.src.helpers.get_and_manipulate_graph import (
     download_initial_graph,
     tag_toll_nodes,
     filter_tagged_nodes,
@@ -19,9 +19,9 @@ from src.helpers.get_and_manipulate_graph import (
     prune_toll_graph_duplicate_interchange_labels
 )
 
-from src.utils.timer import Timer
-from src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
-from src.utils.setup_logger import get_logger
+from routing_engine.src.utils.timer import Timer
+from routing_engine.src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
+from routing_engine.src.utils.setup_logger import get_logger
 logger = get_logger()
 REDOWNLOAD_GRAPH = False
 

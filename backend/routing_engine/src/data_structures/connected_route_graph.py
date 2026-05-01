@@ -1,7 +1,7 @@
 import networkx as nx
-from src.types.types import ConnectingRoutesType
-from src.helpers.get_and_manipulate_graph import get_route_in_dfs_order
-from src.utils.setup_logger import get_logger
+from routing_engine.src.types.types import ConnectingRoutesType
+from routing_engine.src.helpers.get_and_manipulate_graph import get_route_in_dfs_order
+from routing_engine.src.utils.setup_logger import get_logger
 
 type LatitudeType = float
 type LongitudeType = float

@@ -1,5 +1,5 @@
-from src.get_user_routes_and_best_path import get_user_routes_and_best_path
-from testing.test_get_best_paths import visualize_path
+from routing_engine.src.get_user_routes_and_best_path import get_user_routes_and_best_path
+from test_get_best_paths import visualize_path
 from datetime import datetime, timezone
 
 def test_get_user_routes_and_best_path():
