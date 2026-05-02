@@ -19,19 +19,8 @@ from routing_engine.src.utils.timer import Timer
 from routing_engine.src.utils.setup_logger import get_logger
 from routing_engine.src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
 from routing_engine.src.utils.constants import GRAPH_TO_PLINE_MAPPING_DIST
+from routing_engine.src.errors.errors import NonTollRouteError, NodeMappingNotFoundError
 logger = get_logger()
-
-class NonTollRouteError(Exception):
-    def __init__(self, origin: str, dest: str, message=None, *args):
-        if message is None:
-            message = f'The route from {origin} to {dest} does not need to use Highway 407 ETR'
-        super().__init__(message, *args)
-
-class NodeMappingNotFoundError(Exception):
-    def __init__(self, message=None, *args):
-        if message is None:
-            message = f'No nodes were mapped'
-        super().__init__(message, *args)
 
 class RouteGraphBuilder:
     def __init__(self) -> None:

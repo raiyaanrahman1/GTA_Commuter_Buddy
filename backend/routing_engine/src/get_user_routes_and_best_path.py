@@ -1,4 +1,4 @@
-from routing_engine.src.build_user_route_graph import RouteGraphBuilder, NonTollRouteError
+from routing_engine.src.build_user_route_graph import RouteGraphBuilder
 from datetime import datetime, timezone
 from routing_engine.src.build_user_traffic_routes import (
     get_traffic_aware_durations,

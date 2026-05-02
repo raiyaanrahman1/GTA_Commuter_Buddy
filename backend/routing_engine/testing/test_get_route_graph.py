@@ -1,6 +1,7 @@
 import folium
 
-from routing_engine.src.build_user_route_graph import RouteGraphBuilder, NonTollRouteError
+from routing_engine.src.build_user_route_graph import RouteGraphBuilder
+from routing_engine.src.errors.errors import NonTollRouteError
 from routing_engine.src.utils.visualize_graph import setup_folium_graph, visualize_graph
 from routing_engine.src.utils.get_directories import TEST_OUTPUTS_FOLDER
 from datetime import datetime, timezone
