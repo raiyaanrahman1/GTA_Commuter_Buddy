@@ -1,11 +1,12 @@
 TODO.md
-__pycache__
-cache
-venv
+__pycache__/
+cache/
+venv/
 .DS_Store
 written_unused_functions.py
 .env
 logs/
 intermediate_results/
-testing/test_outputs/
+backend/routing_engine/testing/test_outputs/
 ignore/
+*.egg-info/
