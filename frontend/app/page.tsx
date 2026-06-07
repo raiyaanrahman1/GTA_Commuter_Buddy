@@ -1,5 +1,9 @@
+import MapDisplay from "@/components/MapDisplay";
+
 export default function Home() {
   return (
-    <div>Hello World</div>
+    <main className="w-full h-full">
+      <MapDisplay />
+    </main>
   );
 }
