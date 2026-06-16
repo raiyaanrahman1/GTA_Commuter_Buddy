@@ -14,6 +14,38 @@ const MapSearchInput = dynamic(() => import('./MapSearchInput'), {
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
+const routeLayer: LayerProps = {
+    id: 'route-line',
+    type: 'line',
+    layout: {
+      'line-join': 'round',
+      'line-cap': 'round'
+    },
+    paint: {
+      'line-color': [
+        'match',
+        ['get', 'route_type'],
+        'best', '#2563eb',      // Deep vibrant blue
+        'potential', '#94a3b8', // Muted slate gray
+        '#cccccc'
+      ],
+      'line-width': [
+        'match',
+        ['get', 'route_type'],
+        'best', 8,              // Much thicker
+        'potential', 5,         // Thinner
+        2
+      ],
+      'line-opacity': [
+        'match',
+        ['get', 'route_type'],
+        'best', 1,              // Fully opaque
+        'potential', 0.8,       // Semi-transparent to push it into background
+        0.5
+      ]
+    }
+  };
+
 export default function MapDisplay() {
   const mapRef = useRef<MapRef>(null);
   const [mapInstance, setMapInstance] = useState<mapboxgl.Map | undefined>(undefined);
@@ -59,21 +91,50 @@ export default function MapDisplay() {
     }
   };
 
+  const fitMapBounds = useCallback((start: [number, number], end: [number, number]) => {
+    if (mapRef.current) {
+      const bounds = new mapboxgl.LngLatBounds();
+      bounds.extend(start);
+      bounds.extend(end);
+
+      mapRef.current.fitBounds(bounds, {
+        padding: 100, // Give some space around the markers
+        duration: 1000 // Smooth animation
+      });
+    }
+  }, []);
+
+  const flyToCoords = useCallback((coords: [number, number]) => {
+    if (mapRef.current) {
+      mapRef.current.flyTo({
+        center: coords,
+        zoom: 14,
+        duration: 1000
+      });
+    }
+  }, []);
+
   const handleOriginResult = useCallback((coords: [number, number] | null) => {
     setOrigin(coords);
     if (coords && destination) {
+      fitMapBounds(coords, destination);
       fetchDirections(coords, destination);
+    } else if (coords) {
+      flyToCoords(coords)
     }
-  }, [destination]);
+  }, [destination, fitMapBounds, flyToCoords]);
 
   const handleDestinationResult = useCallback((coords: [number, number] | null) => {
     setDestination(coords);
     if (origin && coords) {
+      fitMapBounds(origin, coords)
       fetchDirections(origin, coords);
+    } else if (coords) {
+      flyToCoords(coords)
     }
-  }, [origin]);
+  }, [origin, fitMapBounds, flyToCoords]);
 
-  useEffect(() => {
+  const getUserLocation = () => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -92,20 +153,9 @@ export default function MapDisplay() {
         }
       );
     }
-  }, []);
+  }
 
-  useEffect(() => {
-    if (origin && destination && mapRef.current) {
-      const bounds = new mapboxgl.LngLatBounds();
-      bounds.extend(origin);
-      bounds.extend(destination);
-
-      mapRef.current.fitBounds(bounds, {
-        padding: 100, // Give some space around the markers
-        duration: 1000 // Smooth animation
-      });
-    }
-  }, [origin, destination]);
+  useEffect(getUserLocation, []);
 
   // 2. Safe Ref handling: Set state once map loads
   const onMapLoad = useCallback(() => {
@@ -114,40 +164,8 @@ export default function MapDisplay() {
     }
   }, []);
 
-  const routeLayer: LayerProps = {
-    id: 'route-line',
-    type: 'line',
-    layout: {
-      'line-join': 'round',
-      'line-cap': 'round'
-    },
-    paint: {
-      'line-color': [
-        'match',
-        ['get', 'route_type'],
-        'best', '#2563eb',      // Deep vibrant blue
-        'potential', '#94a3b8', // Muted slate gray
-        '#cccccc'
-      ],
-      'line-width': [
-        'match',
-        ['get', 'route_type'],
-        'best', 8,              // Much thicker
-        'potential', 5,         // Thinner
-        2
-      ],
-      'line-opacity': [
-        'match',
-        ['get', 'route_type'],
-        'best', 1,              // Fully opaque
-        'potential', 0.8,       // Semi-transparent to push it into background
-        0.5
-      ]
-    }
-  };
-
   return (
-    <div className="relative w-full h-screen">
+    <div className="relative w-full h-full">
       {/* Search overlay with two boxes */}
       <div className="absolute top-5 left-5 z-20 w-[350px] flex flex-col gap-2 p-3 bg-white/80 backdrop-blur rounded-lg shadow-lg">
         <h2 className="text-sm font-bold text-gray-700">Get Directions</h2>

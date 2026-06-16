@@ -42,6 +42,7 @@ export default function MapSearchInput({
         types: 'address,poi',
         proximity: proximity
       }}
+      componentOptions={{ flyTo: false }}
     />
   );
 }
