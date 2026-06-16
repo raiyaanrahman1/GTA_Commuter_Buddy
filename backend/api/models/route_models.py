@@ -1,6 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from routing_engine.src.types.types import PolylineType
+from typing import Literal, Any
 
 
 class RouteRequest(BaseModel):
@@ -9,6 +10,20 @@ class RouteRequest(BaseModel):
     departure_dttm: datetime
     budget: float
 
+class LineStringGeometry(BaseModel):
+    type: Literal["LineString"] = "LineString"
+    coordinates: list[tuple[float, float]] # List of [longitude, latitude]
+
+# 2. Define the Feature Model
+class RouteFeature(BaseModel):
+    type: Literal["Feature"] = "Feature"
+    geometry: LineStringGeometry
+    properties: dict[str, Any] = Field(
+        default_factory=dict, 
+        description="Include 'route_type': 'best' or 'potential' here"
+    )
+
+# 3. Define the FeatureCollection (The final response model)
 class RouteResponse(BaseModel):
-    potential_routes: list[PolylineType]
-    best_route_segments: list[PolylineType]
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    features: list[RouteFeature]

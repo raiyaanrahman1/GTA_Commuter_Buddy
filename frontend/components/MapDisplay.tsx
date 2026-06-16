@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import Map, { MapRef, ViewStateChangeEvent, Marker } from 'react-map-gl/mapbox';
+import type { LayerProps } from 'react-map-gl/mapbox';
+import Map, { MapRef, ViewStateChangeEvent, Marker, Source, Layer } from 'react-map-gl/mapbox';
 import mapboxgl from 'mapbox-gl';
 import dynamic from 'next/dynamic';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -26,6 +27,7 @@ export default function MapDisplay() {
   // Directions State
   const [origin, setOrigin] = useState<[number, number] | null>(null);
   const [destination, setDestination] = useState<[number, number] | null>(null);
+  const [routeData, setRouteData] = useState<GeoJSON.FeatureCollection<GeoJSON.Geometry> | null>(null);
 
   const fetchDirections = async (start: [number, number], end: [number, number]) => {
     console.log("Calling custom backend for directions:", { start, end });
@@ -41,20 +43,35 @@ export default function MapDisplay() {
           budget: 0.0
         })
       });
-      const data = await response.json();
+      const data: GeoJSON.FeatureCollection = await response.json();
       // Handle your route data here (e.g., drawing a polyline)
       console.log('Route data:', data);
+      const filteredData: GeoJSON.FeatureCollection<GeoJSON.Geometry> = {
+        ...data,
+        features: data.features.filter((f, i) => {
+          if (f.properties?.route_type === 'best') return true;
+          return i < 3; 
+        })
+      }
+      setRouteData(filteredData);
     } catch (error) {
       console.error('Backend fetch error:', error);
     }
   };
 
-  // Trigger backend directions when both points exist
-  useEffect(() => {
-    if (origin && destination) {
-      fetchDirections(origin, destination);
+  const handleOriginResult = useCallback((coords: [number, number] | null) => {
+    setOrigin(coords);
+    if (coords && destination) {
+      fetchDirections(coords, destination);
     }
-  }, [origin, destination]);
+  }, [destination]);
+
+  const handleDestinationResult = useCallback((coords: [number, number] | null) => {
+    setDestination(coords);
+    if (origin && coords) {
+      fetchDirections(origin, coords);
+    }
+  }, [origin]);
 
   useEffect(() => {
     if ('geolocation' in navigator) {
@@ -97,6 +114,38 @@ export default function MapDisplay() {
     }
   }, []);
 
+  const routeLayer: LayerProps = {
+    id: 'route-line',
+    type: 'line',
+    layout: {
+      'line-join': 'round',
+      'line-cap': 'round'
+    },
+    paint: {
+      'line-color': [
+        'match',
+        ['get', 'route_type'],
+        'best', '#2563eb',      // Deep vibrant blue
+        'potential', '#94a3b8', // Muted slate gray
+        '#cccccc'
+      ],
+      'line-width': [
+        'match',
+        ['get', 'route_type'],
+        'best', 8,              // Much thicker
+        'potential', 5,         // Thinner
+        2
+      ],
+      'line-opacity': [
+        'match',
+        ['get', 'route_type'],
+        'best', 1,              // Fully opaque
+        'potential', 0.8,       // Semi-transparent to push it into background
+        0.5
+      ]
+    }
+  };
+
   return (
     <div className="relative w-full h-screen">
       {/* Search overlay with two boxes */}
@@ -110,7 +159,7 @@ export default function MapDisplay() {
             destination?.[1] ?? viewState.latitude
           ]}
           placeholder="From: Origin..."
-          onResult={(coords) => setOrigin(coords)}
+          onResult={handleOriginResult}
         />
         <MapSearchInput 
           accessToken={MAPBOX_TOKEN} 
@@ -120,7 +169,7 @@ export default function MapDisplay() {
             origin?.[1] ?? viewState.latitude
           ]}
           placeholder="To: Destination..."
-          onResult={(coords) => setDestination(coords)}
+          onResult={handleDestinationResult}
         />
       </div>
 
@@ -133,7 +182,11 @@ export default function MapDisplay() {
         mapStyle="mapbox://styles/mapbox/streets-v12"
         mapboxAccessToken={MAPBOX_TOKEN}
       >
-        {/* Custom Markers for Directions */}
+        {routeData && (
+          <Source id="my-route" type="geojson" data={routeData}>
+            <Layer {...routeLayer} />
+          </Source>
+        )}
         {origin && (
           <Marker longitude={origin[0]} latitude={origin[1]} color="#22c55e" /> // Green for Start
         )}
