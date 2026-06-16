@@ -4,13 +4,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import type { LayerProps } from 'react-map-gl/mapbox';
 import Map, { MapRef, ViewStateChangeEvent, Marker, Source, Layer } from 'react-map-gl/mapbox';
 import mapboxgl from 'mapbox-gl';
-import dynamic from 'next/dynamic';
 import 'mapbox-gl/dist/mapbox-gl.css';
-
-const MapSearchInput = dynamic(() => import('./MapSearchInput'), { 
-  ssr: false,
-  loading: () => <div className="h-10 w-full bg-white border rounded animate-pulse" />
-});
+import RoutingOptionsCard from './RoutingOptionsCard';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -48,6 +43,7 @@ const routeLayer: LayerProps = {
 
 export default function MapDisplay() {
   const mapRef = useRef<MapRef>(null);
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mapInstance, setMapInstance] = useState<mapboxgl.Map | undefined>(undefined);
   
   const [viewState, setViewState] = useState({
@@ -61,7 +57,21 @@ export default function MapDisplay() {
   const [destination, setDestination] = useState<[number, number] | null>(null);
   const [routeData, setRouteData] = useState<GeoJSON.FeatureCollection<GeoJSON.Geometry> | null>(null);
 
-  const fetchDirections = async (start: [number, number], end: [number, number]) => {
+  // Departure and Budget State
+  const [departureDttm, setDepartureDttm] = useState<string>(() => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000;
+    // Formats into local YYYY-MM-DDTHH:MM format required by input[type="datetime-local"]
+    return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+  });
+  const [budget, setBudget] = useState<number>(0);
+
+  const fetchDirections = useCallback(async (
+      start: [number, number], 
+      end: [number, number],
+      depTime: string,
+      budVal: number
+    ) => {
     console.log("Calling custom backend for directions:", { start, end });
     try {
       console.log('Fetching directions from custom backend...');
@@ -71,12 +81,11 @@ export default function MapDisplay() {
         body: JSON.stringify({
           origin: [start[1], start[0]],
           destination: [end[1], end[0]],
-          departure_dttm: new Date().toISOString(),
-          budget: 0.0
+          departure_dttm: new Date(depTime).toISOString(),
+          budget: budVal * 100.0
         })
       });
       const data: GeoJSON.FeatureCollection = await response.json();
-      // Handle your route data here (e.g., drawing a polyline)
       console.log('Route data:', data);
       const filteredData: GeoJSON.FeatureCollection<GeoJSON.Geometry> = {
         ...data,
@@ -89,7 +98,27 @@ export default function MapDisplay() {
     } catch (error) {
       console.error('Backend fetch error:', error);
     }
-  };
+  }, []);
+
+  const clearFetchQueue = () => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+  }
+
+  const queueFetchDirections = useCallback((
+    start: [number, number],
+    end: [number, number],
+    depTime: string,
+    budVal: number,
+    delay: number
+  ) => {
+    clearFetchQueue()
+    
+    debounceTimeoutRef.current = setTimeout(() => {
+      fetchDirections(start, end, depTime, budVal);
+    }, delay);
+  }, [fetchDirections]);
 
   const fitMapBounds = useCallback((start: [number, number], end: [number, number]) => {
     if (mapRef.current) {
@@ -118,21 +147,35 @@ export default function MapDisplay() {
     setOrigin(coords);
     if (coords && destination) {
       fitMapBounds(coords, destination);
-      fetchDirections(coords, destination);
+      queueFetchDirections(coords, destination, departureDttm, budget, 0);
     } else if (coords) {
       flyToCoords(coords)
     }
-  }, [destination, fitMapBounds, flyToCoords]);
+  }, [destination, departureDttm, budget, fitMapBounds, flyToCoords, queueFetchDirections]);
 
   const handleDestinationResult = useCallback((coords: [number, number] | null) => {
     setDestination(coords);
     if (origin && coords) {
       fitMapBounds(origin, coords)
-      fetchDirections(origin, coords);
+      queueFetchDirections(origin, coords, departureDttm, budget, 0);
     } else if (coords) {
       flyToCoords(coords)
     }
-  }, [origin, fitMapBounds, flyToCoords]);
+  }, [origin, departureDttm, budget, fitMapBounds, flyToCoords, queueFetchDirections]);
+
+  const handleDepartureChange = useCallback((newDttm: string) => {
+    setDepartureDttm(newDttm);
+    if (origin && destination) {
+      queueFetchDirections(origin, destination, newDttm, budget, 800);
+    }
+  }, [origin, destination, budget, queueFetchDirections]);
+
+  const handleBudgetChange = useCallback((newBudget: number) => {
+    setBudget(newBudget);
+    if (origin && destination) {
+      queueFetchDirections(origin, destination, departureDttm, newBudget, 800);
+    }
+  }, [origin, destination, departureDttm, queueFetchDirections]);
 
   const getUserLocation = () => {
     if ('geolocation' in navigator) {
@@ -157,6 +200,14 @@ export default function MapDisplay() {
 
   useEffect(getUserLocation, []);
 
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // 2. Safe Ref handling: Set state once map loads
   const onMapLoad = useCallback(() => {
     if (mapRef.current) {
@@ -164,32 +215,31 @@ export default function MapDisplay() {
     }
   }, []);
 
+  const originInputProximity: [number, number] = [
+    destination?.[0] ?? viewState.longitude, 
+    destination?.[1] ?? viewState.latitude
+  ]
+
+  const destinationInputProximity: [number, number] = [
+    origin?.[0] ?? viewState.longitude, 
+    origin?.[1] ?? viewState.latitude
+  ]
+
   return (
     <div className="relative w-full h-full">
       {/* Search overlay with two boxes */}
-      <div className="absolute top-5 left-5 z-20 w-[350px] flex flex-col gap-2 p-3 bg-white/80 backdrop-blur rounded-lg shadow-lg">
-        <h2 className="text-sm font-bold text-gray-700">Get Directions</h2>
-        <MapSearchInput 
-          accessToken={MAPBOX_TOKEN} 
-          mapInstance={mapInstance} 
-          proximity={[
-            destination?.[0] ?? viewState.longitude, 
-            destination?.[1] ?? viewState.latitude
-          ]}
-          placeholder="From: Origin..."
-          onResult={handleOriginResult}
-        />
-        <MapSearchInput 
-          accessToken={MAPBOX_TOKEN} 
-          mapInstance={mapInstance} 
-          proximity={[
-            origin?.[0] ?? viewState.longitude, 
-            origin?.[1] ?? viewState.latitude
-          ]}
-          placeholder="To: Destination..."
-          onResult={handleDestinationResult}
-        />
-      </div>
+      <RoutingOptionsCard
+        mapInstance={mapInstance}
+        originInputProximity={originInputProximity}
+        destinationInputProximity={destinationInputProximity}
+        handleOriginResult={handleOriginResult}
+        handleDestinationResult={handleDestinationResult}
+        departureDttm={departureDttm}
+        handleDepartureChange={handleDepartureChange}
+        budget={budget}
+        handleBudgetChange={handleBudgetChange}
+        clearFetchQueue={clearFetchQueue}
+      />
 
       <Map
         {...viewState}
