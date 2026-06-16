@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@mapbox/search-js-core':
+        specifier: ^1.5.1
+        version: 1.5.1
       '@mapbox/search-js-react':
         specifier: ^1.5.1
         version: 1.5.1(mapbox-gl@3.24.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
