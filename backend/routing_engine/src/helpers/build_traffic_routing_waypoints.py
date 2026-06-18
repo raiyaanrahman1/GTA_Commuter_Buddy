@@ -19,20 +19,18 @@ type StrWaypointsPerRoute = List[List[str]]
 
 
 class TrafficWaypointsBuilder:
-    def __init__(self) -> None:
-        with Timer('Getting intersection simplification mapping', 'Got intersection simplification mapping'):
-            with open(INTERMEDIATE_RESULTS_DIR / 'intersection_simplification_mapping.json', 'r', encoding='utf-8') as f:
-                int_simp_mapping = json.load(f)
-                self.int_simp_mapping = {int(key): value for key, value in int_simp_mapping.items()}
-
-            with open(INTERMEDIATE_RESULTS_DIR / 'toll_nodes_simplification_mapping.json', 'r', encoding='utf-8') as f:
-                toll_simp_mapping = json.load(f)
-                self.toll_simp_mapping = {int(key): value for key, value in toll_simp_mapping.items()}
-
-        with Timer('Loading graphs', 'Loaded graphs'):
-            self.major_ints_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'major_intersections.graphml')
-            self.full_toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'full_toll_graph.graphml')
-
+    def __init__(
+            self,
+            toll_node_mappings: dict[int, list[int]],
+            int_simp_mapping: dict[int, list[int]],
+            full_toll_graph: nx.MultiDiGraph,
+            full_major_ints_graph: nx.MultiDiGraph
+        ) -> None:
+        self.int_simp_mapping = int_simp_mapping
+        self.toll_simp_mapping = toll_node_mappings
+        self.full_toll_graph = full_toll_graph
+        self.major_ints_graph = full_major_ints_graph
+        
     def get_closest_point_on_polyline(self, G: nx.MultiDiGraph, node_id: int, polyline_coords: List[Tuple[float, float]]):
         """
         Finds the closest point on a polyline to a graph node.
@@ -101,13 +99,12 @@ class TrafficWaypointsBuilder:
 
         return min(distances, key=lambda dist: dist[2])
     
-    def build_waypoints(self, route_graphs: List[nx.MultiDiGraph], route_polylines: List[List[Tuple]]):
-        with Timer('Getting Route Node Mapping', 'Getting Route Node Mapping'):
-            with open(INTERMEDIATE_RESULTS_DIR / 'route_node_mappings.json', 'r', encoding='utf-8') as f:
-                route_node_mappings = json.load(f)
-
-        route_node_mappings = [{int(p_id): ox_id for p_id, ox_id in route_map.items()} for route_map in route_node_mappings]
-
+    def build_waypoints(
+            self,
+            route_graphs: List[nx.MultiDiGraph],
+            route_polylines: List[List[Tuple]],
+            route_node_mappings: list[dict[int, int]]
+        ):
         # logger.debug(f'*************{len(route_graphs)}')
         # logger.debug(f'*************{len(route_polylines)}')
         all_waypoints: StrWaypointsPerRoute = []

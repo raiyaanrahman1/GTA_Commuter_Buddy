@@ -1,11 +1,25 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from routes.routes import router
 from fastapi.middleware.cors import CORSMiddleware
+from routing_engine.src.build_user_route_graph import RouteGraphBuilder
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("Loading route graph into memory...")
+    app.state.route_builder = RouteGraphBuilder()
+    
+    yield  # The application runs while paused here
+    
+    # Shutdown
+    print("Shutting down and cleaning up resources...")
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="GTA Commuter Buddy API",
-        version="1.0.0"
+        version="1.0.0",
+        lifespan=lifespan
     )
 
     # Register API routes

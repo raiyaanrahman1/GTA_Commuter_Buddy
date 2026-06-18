@@ -35,7 +35,15 @@ def test_get_route_graph():
 
     departure_dttm = datetime(2026, 3, 30, 7, 10)
     departure_dttm_str = departure_dttm.isoformat()
-    route_graphs, polylines = builder.get_full_route_graph(origin[0], origin[1], destination[0], destination[1], departure_dttm_str)
+    (
+        route_graphs,
+        polylines,
+        toll_node_mapping,
+        intersection_simp_mapping,
+        route_node_mapping,
+        full_toll_graph,
+        full_major_ints_graph
+    ) = builder.get_full_route_graph(origin[0], origin[1], destination[0], destination[1], departure_dttm_str)
 
     m = setup_folium_graph(builder.toll_graph)
     # m = visualize_graph(builder.toll_graph, m, 'red')
@@ -54,7 +62,20 @@ def test_get_route_graph():
 
     m.save(TEST_OUTPUTS_FOLDER / 'route_polylines.html')
 
-    return route_graphs, polylines, origin, destination, departure_dttm, departure_dttm_str, builder
+    return (
+        route_graphs,
+        polylines,
+        origin,
+        destination,
+        departure_dttm,
+        departure_dttm_str,
+        builder,
+        toll_node_mapping,
+        intersection_simp_mapping,
+        route_node_mapping,
+        full_toll_graph,
+        full_major_ints_graph
+    )
 
 
 if __name__ == '__main__':

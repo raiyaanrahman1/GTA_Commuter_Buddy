@@ -3,6 +3,8 @@ from routing_engine.src.errors.errors import NonTollRouteError
 from routing_engine.src.types.types import PolylineType
 from fastapi import HTTPException, status
 from models.route_models import RouteRequest, RouteResponse
+from routing_engine.src.build_user_route_graph import RouteGraphBuilder
+
 
 def to_geojson_feature(coords: PolylineType, status: str):
     # Swap [lat, lng] to [lng, lat] for Mapbox/GeoJSON
@@ -30,13 +32,14 @@ def build_feature_collection(best_routes: list[PolylineType], potential_routes: 
 
     return RouteResponse(features=features)
 
-def compute_route(request: RouteRequest) -> RouteResponse:
+def compute_route(request: RouteRequest, builder: RouteGraphBuilder) -> RouteResponse:
     try:
         potential_routes, best_route_segments, _ = get_user_routes_and_best_path(
             request.origin,
             request.destination,
             request.departure_dttm,
-            request.budget
+            request.budget,
+            builder
         )
     except NonTollRouteError as e:
         raise HTTPException(
