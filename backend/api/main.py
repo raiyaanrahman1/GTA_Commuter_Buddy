@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from routes.routes import router
 from fastapi.middleware.cors import CORSMiddleware
 from routing_engine.src.build_user_route_graph import RouteGraphBuilder
+import uvicorn
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,3 +37,12 @@ def create_app() -> FastAPI:
     return app
 
 app = create_app()
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app", 
+        host="127.0.0.1", 
+        port=8000, 
+        reload=True,
+        reload_dirs=[".", "../routing_engine/src"] # Watch both directories
+    )
