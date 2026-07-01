@@ -2,7 +2,7 @@ from routing_engine.src.get_user_routes_and_best_path import get_user_routes_and
 from routing_engine.src.errors.errors import NonTollRouteError
 from routing_engine.src.types.types import PolylineType
 from fastapi import HTTPException, status
-from models.route_models import RouteRequest, RouteResponse
+from models.route_models import RouteRequest, RouteResponse, FeatureCollection
 from routing_engine.src.build_user_route_graph import RouteGraphBuilder
 
 
@@ -30,7 +30,7 @@ def build_feature_collection(best_routes: list[PolylineType], potential_routes: 
     for route in best_routes:
         features.append(to_geojson_feature(route, "best"))
 
-    return RouteResponse(features=features)
+    return FeatureCollection(features=features)
 
 def compute_route(request: RouteRequest, builder: RouteGraphBuilder) -> RouteResponse:
     try:
@@ -41,11 +41,14 @@ def compute_route(request: RouteRequest, builder: RouteGraphBuilder) -> RouteRes
             request.budget,
             builder
         )
+        metadata = 'TollRoute'
     except NonTollRouteError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    response = build_feature_collection(best_route_segments, potential_routes)
+        best_route_segments = e.best_route_segments
+        potential_routes = e.potential_routes
+        metadata = 'NonTollRoute'
+    response = RouteResponse(
+        data=build_feature_collection(best_route_segments, potential_routes),
+        metadata=metadata
+    )
     
     return response

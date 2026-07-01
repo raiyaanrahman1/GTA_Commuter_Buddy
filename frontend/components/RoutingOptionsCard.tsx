@@ -20,6 +20,7 @@ interface RoutingOptionsProps {
   budget: number;
   handleBudgetChange: (val: number) => void;
   clearFetchQueue: () => void;
+  routeMetadata: string | null;
 }
 
 const RoutingOptionsCard = ({
@@ -32,7 +33,8 @@ const RoutingOptionsCard = ({
   handleDepartureChange,
   budget,
   handleBudgetChange,
-  clearFetchQueue
+  clearFetchQueue,
+  routeMetadata
 }: RoutingOptionsProps) => {
   const [tempBudget, setTempBudget] = useState(budget);
   const sliderKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'];
@@ -99,7 +101,14 @@ const RoutingOptionsCard = ({
                 handleBudgetChange(tempBudget);
               }
             }}
-            className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+
+            disabled={routeMetadata === 'NonTollRoute'}
+
+            className={`w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer transition-all duration-200
+                ${routeMetadata === 'NonTollRoute'
+                ? 'accent-gray-400 pointer-events-none opacity-60 [&::-webkit-slider-thumb]:bg-gray-400'
+                : 'accent-blue-600 [&::-webkit-slider-thumb]:bg-blue-600'
+              }`}
           />
           <input
             type="number"
@@ -112,9 +121,22 @@ const RoutingOptionsCard = ({
               setTempBudget(val);
               handleBudgetChange(val);
             }}
-            className="w-16 text-xs p-1 border rounded-md border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 text-center bg-white text-gray-700"
+            disabled={routeMetadata === 'NonTollRoute'}
+            className="
+              w-16 text-xs p-1 border rounded-md border-gray-300 focus:outline-none
+              focus:ring-1 focus:ring-blue-500 text-center bg-white text-gray-700
+              disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed
+            "
           />
         </div>
+        {
+          routeMetadata === 'NonTollRoute' && (
+            <p className='text-xs font-medium text-red-700'>
+              This route does not use the 407 ETR
+            </p>
+          )
+        }
+        
       </div>
     </div>
   )

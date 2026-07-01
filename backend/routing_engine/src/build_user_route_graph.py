@@ -20,6 +20,7 @@ from routing_engine.src.utils.setup_logger import get_logger
 from routing_engine.src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
 from routing_engine.src.utils.constants import GRAPH_TO_PLINE_MAPPING_DIST
 from routing_engine.src.errors.errors import NonTollRouteError, NodeMappingNotFoundError
+from routing_engine.src.types.types import PolylineType
 logger = get_logger()
 
 class RouteGraphBuilder:
@@ -94,12 +95,21 @@ class RouteGraphBuilder:
             latlon = [(lat, lon) for lat, lon, *_ in decoded]
             polylines.append(latlon)
 
-            self.toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
-
-            try:
-                toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
-            except NodeMappingNotFoundError:
-                raise NonTollRouteError(origin, destination)
+            toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
+            toll_graphs_to_check = [toll_graph] if toll_graph is not None else [self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw]
+            
+            for tg in toll_graphs_to_check:
+                try:
+                    toll_nodes = self.get_route_nodes(latlon, tg, GRAPH_TO_PLINE_MAPPING_DIST)
+                    break
+                except NodeMappingNotFoundError:
+                    pass
+            else:
+                potential_routes: list[PolylineType] = [latlon]
+                potential_routes += [fpl.decode(route['sections'][0]['polyline']) for route in routes] # type: ignore
+                raise NonTollRouteError(origin, destination, latlon, potential_routes)
+            
+            self.toll_graph = tg
 
             self.toll_nodes = toll_nodes
             self.latlon = latlon
@@ -259,7 +269,7 @@ class RouteGraphBuilder:
             return sw_to_ne_graph
         elif (lat2 < lat1 and lon2 < lon1):
             return ne_to_sw_graph
-        assert False
+        return None
 
     # TODO: remove this method if it's not being used
     def simplify_toll_graph(self):

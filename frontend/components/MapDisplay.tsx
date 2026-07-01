@@ -45,6 +45,7 @@ export default function MapDisplay() {
   const mapRef = useRef<MapRef>(null);
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mapInstance, setMapInstance] = useState<mapboxgl.Map | undefined>(undefined);
+  const [routeMetadata, setRouteMetadata] = useState<string | null>(null)
   
   const [viewState, setViewState] = useState({
     longitude: -79.38,
@@ -75,6 +76,8 @@ export default function MapDisplay() {
     console.log("Calling custom backend for directions:", { start, end });
     try {
       console.log('Fetching directions from custom backend...');
+
+      const startTime = performance.now();
       const response = await fetch('http://localhost:8000/api/route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,16 +88,32 @@ export default function MapDisplay() {
           budget: budVal * 100.0
         })
       });
-      const data: GeoJSON.FeatureCollection = await response.json();
+      interface responseType {
+        data: GeoJSON.FeatureCollection,
+        metadata: string
+      }
+      const {
+        data,
+        metadata
+      }: responseType = await response.json()
+      const endTime = performance.now();
+      const durationInSeconds = (endTime - startTime) / 1000;
+    
+      console.log(`Backend fetch took ${durationInSeconds.toFixed(3)} seconds.`);
       console.log('Route data:', data);
-      const filteredData: GeoJSON.FeatureCollection<GeoJSON.Geometry> = {
-        ...data,
-        features: data.features.filter((f, i) => {
-          if (f.properties?.route_type === 'best') return true;
-          return i < 3; 
-        })
+
+      let filteredData = data;
+      if (metadata === 'TollRoute') {
+        filteredData = {
+          ...data,
+          features: data.features.filter((f, i) => {
+            if (f.properties?.route_type === 'best') return true;
+            return i < 3;
+          })
+        }
       }
       setRouteData(filteredData);
+      setRouteMetadata(metadata)
     } catch (error) {
       console.error('Backend fetch error:', error);
     }
@@ -239,6 +258,7 @@ export default function MapDisplay() {
         budget={budget}
         handleBudgetChange={handleBudgetChange}
         clearFetchQueue={clearFetchQueue}
+        routeMetadata={routeMetadata}
       />
 
       <Map

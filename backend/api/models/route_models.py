@@ -23,7 +23,11 @@ class RouteFeature(BaseModel):
         description="Include 'route_type': 'best' or 'potential' here"
     )
 
-# 3. Define the FeatureCollection (The final response model)
-class RouteResponse(BaseModel):
+class FeatureCollection(BaseModel):
     type: Literal["FeatureCollection"] = "FeatureCollection"
     features: list[RouteFeature]
+
+# 3. Define the FeatureCollection (The final response model)
+class RouteResponse(BaseModel):
+    data: FeatureCollection
+    metadata: str
