@@ -29,6 +29,12 @@ class TimeRangeParsed(TypedDict):
     start_dttm: datetime
     end_dttm: datetime
 
+class TripInterchange(TypedDict):
+    distance: float
+    zone: int
+    portion_start_interchange: str
+    portion_end_interchange: str
+
 # Compile regex once for performance
 # Matches: Group 1(Hour/Min), Group 2(am/pm), Group 3(Hour/Min), Group 4(am/pm)
 TIME_REGEX = re.compile(r"(\d{1,2}(?::\d{2})?)([ap]m)-(\d{1,2}(?::\d{2})?)([ap]m)", re.IGNORECASE)
@@ -155,7 +161,7 @@ def get_toll_cost(
         raise ValueError(f'Invalid direction: {direction}')
     
     start_counting = False
-    trip_interchanges: list[dict] = []
+    trip_interchanges: list[TripInterchange] = []
     for i, interchange in enumerate(HWY_407_INTERCHANGES):
 
         if interchange['name'] == starting_interchange:

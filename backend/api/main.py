@@ -1,20 +1,35 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from routes.routes import router
 from fastapi.middleware.cors import CORSMiddleware
 from routing_engine.src.build_user_route_graph import RouteGraphBuilder
+from typing import AsyncIterator, TypedDict
 import uvicorn
 
+from routes.routes import router
+from misc.sliding_ttl_cache import SlidingTTLCache
+from misc.types import RouteState
+
+class StateDict(TypedDict):
+    route_builder: RouteGraphBuilder
+    route_cache: SlidingTTLCache
+
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[StateDict]:
     # Startup
     print("Loading route graph into memory...")
-    app.state.route_builder = RouteGraphBuilder()
+    route_graph_builder = RouteGraphBuilder()
+    route_cache: SlidingTTLCache[str, RouteState] = SlidingTTLCache(maxsize=100, ttl=600)
     
-    yield  # The application runs while paused here
+    # Note: passing in state variables directly into yield makes them only accessible in requests
+    # They become merged into every request, but they are part of the request state, not the app state
+    yield {
+        'route_builder': route_graph_builder,
+        'route_cache': route_cache,
+    }
     
     # Shutdown
     print("Shutting down and cleaning up resources...")
+    route_cache.clear()
 
 def create_app() -> FastAPI:
     app = FastAPI(
