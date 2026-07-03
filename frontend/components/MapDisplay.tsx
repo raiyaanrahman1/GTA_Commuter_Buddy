@@ -45,7 +45,8 @@ export default function MapDisplay() {
   const mapRef = useRef<MapRef>(null);
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mapInstance, setMapInstance] = useState<mapboxgl.Map | undefined>(undefined);
-  const [routeMetadata, setRouteMetadata] = useState<string | null>(null)
+  const [routeMetadata, setRouteMetadata] = useState<string | null>(null);
+  const [maxTollCost, setMaxTollCost] = useState(200.0);
   
   const [viewState, setViewState] = useState({
     longitude: -79.38,
@@ -66,6 +67,12 @@ export default function MapDisplay() {
     return new Date(now.getTime() - offset).toISOString().slice(0, 16);
   });
   const [budget, setBudget] = useState<number>(0);
+  
+  const clearFetchQueue = () => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+  }
 
   const fetchDirections = useCallback(async (
       start: [number, number], 
@@ -90,17 +97,21 @@ export default function MapDisplay() {
       });
       interface responseType {
         data: GeoJSON.FeatureCollection,
-        metadata: string
+        metadata: string,
+        toll_cost: number
       }
       const {
         data,
-        metadata
+        metadata,
+        toll_cost
       }: responseType = await response.json()
       const endTime = performance.now();
       const durationInSeconds = (endTime - startTime) / 1000;
     
       console.log(`Backend fetch took ${durationInSeconds.toFixed(3)} seconds.`);
       console.log('Route data:', data);
+      const tollCostDollars = toll_cost / 100;
+      const roundedTollCost = Math.ceil(tollCostDollars / 5) * 5.0
 
       let filteredData = data;
       if (metadata === 'TollRoute') {
@@ -111,19 +122,18 @@ export default function MapDisplay() {
             return i < 3;
           })
         }
+      } else {
+        setBudget(0);
       }
       setRouteData(filteredData);
-      setRouteMetadata(metadata)
+      setRouteMetadata(metadata);
+      setMaxTollCost(roundedTollCost);
+      clearFetchQueue();
     } catch (error) {
       console.error('Backend fetch error:', error);
     }
   }, []);
 
-  const clearFetchQueue = () => {
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-  }
 
   const queueFetchDirections = useCallback((
     start: [number, number],
@@ -256,6 +266,7 @@ export default function MapDisplay() {
         departureDttm={departureDttm}
         handleDepartureChange={handleDepartureChange}
         budget={budget}
+        maxTollCost={maxTollCost}
         handleBudgetChange={handleBudgetChange}
         clearFetchQueue={clearFetchQueue}
         routeMetadata={routeMetadata}

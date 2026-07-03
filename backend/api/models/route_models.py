@@ -31,3 +31,4 @@ class FeatureCollection(BaseModel):
 class RouteResponse(BaseModel):
     data: FeatureCollection
     metadata: str
+    toll_cost: float

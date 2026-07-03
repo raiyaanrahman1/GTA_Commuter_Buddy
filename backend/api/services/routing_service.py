@@ -121,9 +121,12 @@ def compute_route(
         assert False
 
     assert best_path is not None
+    toll_cost = route_state['total_cost']
+    toll_cost = toll_cost if toll_cost is not None else 0.0
     response = RouteResponse(
         data=build_feature_collection(best_path, route_state['potential_routes']),
-        metadata=route_state['metadata']
+        metadata=route_state['metadata'],
+        toll_cost=toll_cost
     )
     
     return response

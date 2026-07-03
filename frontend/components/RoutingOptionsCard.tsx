@@ -1,6 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const MapSearchInput = dynamic(() => import('./MapSearchInput'), {
   ssr: false,
@@ -18,6 +18,7 @@ interface RoutingOptionsProps {
   departureDttm: string;
   handleDepartureChange: (val: string) => void;
   budget: number;
+  maxTollCost: number;
   handleBudgetChange: (val: number) => void;
   clearFetchQueue: () => void;
   routeMetadata: string | null;
@@ -32,12 +33,18 @@ const RoutingOptionsCard = ({
   departureDttm,
   handleDepartureChange,
   budget,
+  maxTollCost,
   handleBudgetChange,
   clearFetchQueue,
   routeMetadata
 }: RoutingOptionsProps) => {
   const [tempBudget, setTempBudget] = useState(budget);
   const sliderKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'];
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTempBudget(budget);
+  }, [budget]);
 
   return (
     <div className="absolute top-5 left-5 z-20 w-[350px] flex flex-col gap-2 p-3 bg-white/80 backdrop-blur rounded-lg shadow-lg">
@@ -74,11 +81,13 @@ const RoutingOptionsCard = ({
           <label className="text-xs font-semibold text-gray-500">Max Budget</label>
           <span className="text-xs font-bold text-blue-600">${tempBudget}</span>
         </div>
+
+        {/* Budget slider */}
         <div className="flex items-center gap-2">
           <input
             type="range"
             min="0"
-            max="500"
+            max={maxTollCost}
             step="5"
             value={tempBudget}
             onChange={(e) => setTempBudget(Number(e.target.value))}
@@ -110,10 +119,12 @@ const RoutingOptionsCard = ({
                 : 'accent-blue-600 [&::-webkit-slider-thumb]:bg-blue-600'
               }`}
           />
+
+          {/* Budget text input */}
           <input
             type="number"
             min="0"
-            max="500"
+            max={maxTollCost}
             step="5"
             value={tempBudget}
             onChange={(e) => {
