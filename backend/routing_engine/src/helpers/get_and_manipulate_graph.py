@@ -314,7 +314,7 @@ def get_mapping_of_merged_nodes(G: nx.MultiDiGraph, G_simplified: nx.MultiDiGrap
     return node_mapping
 
 def get_mapping_of_simplified_toll_nodes(full_graph: nx.MultiDiGraph, toll_graph: nx.MultiDiGraph):
-    mapping = {}
+    mapping: dict[int, list[int]] = {}
     for node in toll_graph.nodes:
         assert node in full_graph.nodes
         mapping[node] = list(full_graph.predecessors(node)) + list(full_graph.successors(node)) + [node]

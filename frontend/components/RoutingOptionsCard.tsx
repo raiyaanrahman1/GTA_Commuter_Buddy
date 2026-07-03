@@ -1,6 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const MapSearchInput = dynamic(() => import('./MapSearchInput'), {
   ssr: false,
@@ -18,8 +18,10 @@ interface RoutingOptionsProps {
   departureDttm: string;
   handleDepartureChange: (val: string) => void;
   budget: number;
+  maxTollCost: number;
   handleBudgetChange: (val: number) => void;
   clearFetchQueue: () => void;
+  routeMetadata: string | null;
 }
 
 const RoutingOptionsCard = ({
@@ -31,11 +33,18 @@ const RoutingOptionsCard = ({
   departureDttm,
   handleDepartureChange,
   budget,
+  maxTollCost,
   handleBudgetChange,
-  clearFetchQueue
+  clearFetchQueue,
+  routeMetadata
 }: RoutingOptionsProps) => {
   const [tempBudget, setTempBudget] = useState(budget);
   const sliderKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'];
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTempBudget(budget);
+  }, [budget]);
 
   return (
     <div className="absolute top-5 left-5 z-20 w-[350px] flex flex-col gap-2 p-3 bg-white/80 backdrop-blur rounded-lg shadow-lg">
@@ -72,11 +81,13 @@ const RoutingOptionsCard = ({
           <label className="text-xs font-semibold text-gray-500">Max Budget</label>
           <span className="text-xs font-bold text-blue-600">${tempBudget}</span>
         </div>
+
+        {/* Budget slider */}
         <div className="flex items-center gap-2">
           <input
             type="range"
             min="0"
-            max="500"
+            max={maxTollCost}
             step="5"
             value={tempBudget}
             onChange={(e) => setTempBudget(Number(e.target.value))}
@@ -99,12 +110,21 @@ const RoutingOptionsCard = ({
                 handleBudgetChange(tempBudget);
               }
             }}
-            className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+
+            disabled={routeMetadata === 'NonTollRoute'}
+
+            className={`w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer transition-all duration-200
+                ${routeMetadata === 'NonTollRoute'
+                ? 'accent-gray-400 pointer-events-none opacity-60 [&::-webkit-slider-thumb]:bg-gray-400'
+                : 'accent-blue-600 [&::-webkit-slider-thumb]:bg-blue-600'
+              }`}
           />
+
+          {/* Budget text input */}
           <input
             type="number"
             min="0"
-            max="500"
+            max={maxTollCost}
             step="5"
             value={tempBudget}
             onChange={(e) => {
@@ -112,9 +132,22 @@ const RoutingOptionsCard = ({
               setTempBudget(val);
               handleBudgetChange(val);
             }}
-            className="w-16 text-xs p-1 border rounded-md border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 text-center bg-white text-gray-700"
+            disabled={routeMetadata === 'NonTollRoute'}
+            className="
+              w-16 text-xs p-1 border rounded-md border-gray-300 focus:outline-none
+              focus:ring-1 focus:ring-blue-500 text-center bg-white text-gray-700
+              disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed
+            "
           />
         </div>
+        {
+          routeMetadata === 'NonTollRoute' && (
+            <p className='text-xs font-medium text-red-700'>
+              This route does not use the 407 ETR
+            </p>
+          )
+        }
+        
       </div>
     </div>
   )

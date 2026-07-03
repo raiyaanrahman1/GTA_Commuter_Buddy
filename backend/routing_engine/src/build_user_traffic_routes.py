@@ -209,10 +209,15 @@ def get_traffic_aware_durations(
         origin: tuple[float, float],
         destination: tuple[float, float],
         route_polylines: List[List[Tuple]],
-        departure_time_str: str
+        departure_time_str: str,
+        toll_node_mapping: dict[int, list[int]],
+        intersection_simp_mapping: dict[int, list[int]],
+        route_node_mapping: list[dict[int, int]],
+        full_toll_graph: nx.MultiDiGraph,
+        full_major_ints_graph: nx.MultiDiGraph
     ):
-    waypoints_builder = TrafficWaypointsBuilder()
-    waypoints, node_waypoints_maps = waypoints_builder.build_waypoints(route_graphs, route_polylines)
+    waypoints_builder = TrafficWaypointsBuilder(toll_node_mapping, intersection_simp_mapping, full_toll_graph, full_major_ints_graph)
+    waypoints, node_waypoints_maps = waypoints_builder.build_waypoints(route_graphs, route_polylines, route_node_mapping)
     waypoints_builder.realign_nodes_to_waypoints(route_graphs, node_waypoints_maps)
     
     origin_str = f'{origin[0]},{origin[1]}'

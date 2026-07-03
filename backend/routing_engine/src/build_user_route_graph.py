@@ -20,6 +20,7 @@ from routing_engine.src.utils.setup_logger import get_logger
 from routing_engine.src.utils.get_directories import INTERMEDIATE_RESULTS_DIR
 from routing_engine.src.utils.constants import GRAPH_TO_PLINE_MAPPING_DIST
 from routing_engine.src.errors.errors import NonTollRouteError, NodeMappingNotFoundError
+from routing_engine.src.types.types import PolylineType
 logger = get_logger()
 
 class RouteGraphBuilder:
@@ -32,6 +33,12 @@ class RouteGraphBuilder:
             # self.toll_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'simplified_toll_graph.graphml')
             self.toll_graph = self.full_toll_graph
             self.major_ints_graph = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'major_intersections_simplified.graphml')
+            self.major_ints_graph_full = ox.load_graphml(INTERMEDIATE_RESULTS_DIR / 'major_intersections.graphml')
+
+        with Timer('Getting intersection simplification mapping', 'Got intersection simplification mapping'):
+            with open(INTERMEDIATE_RESULTS_DIR / 'intersection_simplification_mapping.json', 'r', encoding='utf-8') as f:
+                int_simp_mapping = json.load(f)
+                self.int_simp_mapping: dict[int, list[int]] = {int(key): value for key, value in int_simp_mapping.items()}
 
         self.combined_graph = nx.MultiDiGraph(nx.compose(self.major_ints_graph, self.toll_graph))
         assert isinstance(self.combined_graph, nx.MultiDiGraph)
@@ -79,7 +86,8 @@ class RouteGraphBuilder:
         logger.info(f'Found {len(routes)} routes')
         route_graphs: List[nx.MultiDiGraph] = []
         polylines: List[List[Tuple]] = []
-        p2b_mappings = []
+        p2b_mappings: list[dict[int, int]] = []
+        toll_node_mapping: dict[int, list[int]] = {}
 
         for i, route in enumerate(toll_routes):
             polyline_str = route['sections'][0]['polyline']
@@ -87,12 +95,21 @@ class RouteGraphBuilder:
             latlon = [(lat, lon) for lat, lon, *_ in decoded]
             polylines.append(latlon)
 
-            self.toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
-
-            try:
-                toll_nodes = self.get_route_nodes(latlon, self.toll_graph, GRAPH_TO_PLINE_MAPPING_DIST)
-            except NodeMappingNotFoundError:
-                raise NonTollRouteError(origin, destination)
+            toll_graph = self.choose_directional_graph_from_polyline(latlon, self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw)
+            toll_graphs_to_check = [toll_graph] if toll_graph is not None else [self.toll_graph_sw_to_ne, self.toll_graph_ne_to_sw]
+            
+            for tg in toll_graphs_to_check:
+                try:
+                    toll_nodes = self.get_route_nodes(latlon, tg, GRAPH_TO_PLINE_MAPPING_DIST)
+                    break
+                except NodeMappingNotFoundError:
+                    pass
+            else:
+                potential_routes: list[PolylineType] = [latlon]
+                potential_routes += [fpl.decode(route['sections'][0]['polyline']) for route in routes] # type: ignore
+                raise NonTollRouteError(origin, destination, latlon, potential_routes)
+            
+            self.toll_graph = tg
 
             self.toll_nodes = toll_nodes
             self.latlon = latlon
@@ -106,9 +123,6 @@ class RouteGraphBuilder:
                 toll_nodes = self.toll_nodes
             else:
                 toll_node_mapping = {node: [node] for node in self.toll_graph.nodes}
-
-            with open(INTERMEDIATE_RESULTS_DIR / 'toll_nodes_simplification_mapping.json', 'w', encoding='utf-8') as f:
-                json.dump(toll_node_mapping, f, indent=2)
 
             p2b_mappings.append(toll_nodes)
             # route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, 50)
@@ -136,16 +150,13 @@ class RouteGraphBuilder:
             route_graph = self.build_route_graph(nodes_to_keep, self.major_ints_graph)
             route_graphs.append(route_graph)
 
-        with Timer('Saving Route Node Mapping', 'Saved Route Node Mapping'):
-            with open(INTERMEDIATE_RESULTS_DIR / 'route_node_mappings.json', 'w', encoding='utf-8') as f:
-                json.dump(p2b_mappings, f, indent=2)
-
+        route_node_mapping = p2b_mappings
 
         for i, route_graph in enumerate(route_graphs):
             logger.info(f'Graph {i + 1}: {len(route_graphs[i].nodes)}')
             logger.info(list(route_graph.nodes))
             
-        return route_graphs, polylines
+        return route_graphs, polylines, toll_node_mapping, self.int_simp_mapping, route_node_mapping, self.full_toll_graph, self.major_ints_graph_full
 
     def get_route_nodes(self, polyline_coords: List[Tuple], base_graph: nx.MultiDiGraph, max_dist):
 
@@ -258,7 +269,7 @@ class RouteGraphBuilder:
             return sw_to_ne_graph
         elif (lat2 < lat1 and lon2 < lon1):
             return ne_to_sw_graph
-        assert False
+        return None
 
     # TODO: remove this method if it's not being used
     def simplify_toll_graph(self):
