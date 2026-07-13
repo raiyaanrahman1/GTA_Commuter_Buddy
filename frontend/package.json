@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@mantine/core": "^9.4.1",
+    "@mantine/hooks": "^9.4.1",
     "@mapbox/search-js-core": "^1.5.1",
     "@mapbox/search-js-react": "^1.5.1",
     "mapbox-gl": "^3.24.0",

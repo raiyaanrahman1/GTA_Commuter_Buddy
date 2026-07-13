@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+import { Slider, NumberInput } from '@mantine/core';
 import { useEffect, useState } from 'react';
 
 const MapSearchInput = dynamic(() => import('./MapSearchInput'), {
@@ -46,6 +47,23 @@ const RoutingOptionsCard = ({
     setTempBudget(budget);
   }, [budget]);
 
+  const budgetAbsoluteMax = 200;
+  const safeMax = maxTollCost > 0 ? maxTollCost : budgetAbsoluteMax;
+  const stepSize = 5;
+  const marks = [
+    {
+      value: 0,
+      label: '$0'
+    }
+  ];
+  for (let i = 0; i < 4; i++) {
+    const val = safeMax * (i + 1) * 0.25;
+    if (val % stepSize === 0) marks.push({
+      value: val,
+      label: `$${val}`
+    })
+  }
+
   return (
     <div className="absolute top-5 left-5 z-20 w-[350px] flex flex-col gap-2 p-3 bg-white/80 backdrop-blur rounded-lg shadow-lg">
       <h2 className="text-sm font-bold text-gray-700">Get Directions</h2>
@@ -75,79 +93,83 @@ const RoutingOptionsCard = ({
         />
       </div>
 
-      {/* Budget Control */}
+
+      {/* Budget Controls */}
       <div className="flex flex-col gap-1 mt-1">
+
+        {/* Budget Controls Heading and Indicator */}
         <div className="flex justify-between items-center">
           <label className="text-xs font-semibold text-gray-500">Max Budget</label>
           <span className="text-xs font-bold text-blue-600">${tempBudget}</span>
         </div>
 
-        {/* Budget slider */}
-        <div className="flex items-center gap-2">
-          <input
-            type="range"
-            min="0"
-            max={maxTollCost}
-            step="5"
-            value={tempBudget}
-            onChange={(e) => setTempBudget(Number(e.target.value))}
+        {/* Budget Inputs */}
+        <div className="flex flex-row gap-5 items-center">
 
-            onMouseDown={() => clearFetchQueue()}
-            onTouchStart={() => clearFetchQueue()}
-            onKeyDown={(e) => {
-              if (sliderKeys.includes(e.key)) clearFetchQueue();
-            }}
+          {/* Budget Slider */}
+          <div className="grow">
+            <Slider
+              min={0}
+              max={safeMax}
+              step={stepSize}
+              value={tempBudget}
+              onChange={setTempBudget}
+              disabled={routeMetadata === 'NonTollRoute'}
+              color="blue"
+              label={(val) => `$${val}`}
+              marks={marks}
 
-            onMouseUp={() => {
-              if (tempBudget !== budget) handleBudgetChange(tempBudget)
-            }}
-            onTouchEnd={() => {
-              if (tempBudget !== budget) handleBudgetChange(tempBudget)
-            }}
-            onKeyUp={(e) => {
-              // Support keyboard navigation on range slider
-              if (sliderKeys.includes(e.key) && tempBudget !== budget) {
-                handleBudgetChange(tempBudget);
-              }
-            }}
+              // Keyboard/Mouse interaction logic
+              onMouseDown={() => clearFetchQueue()}
+              onTouchStart={() => clearFetchQueue()}
+              onKeyDown={(e) => {
+                if (sliderKeys.includes(e.key)) clearFetchQueue();
+              }}
+              onMouseUp={() => {
+                if (tempBudget !== budget) handleBudgetChange(tempBudget);
+              }}
+              onTouchEnd={() => {
+                if (tempBudget !== budget) handleBudgetChange(tempBudget);
+              }}
+              onKeyUp={(e) => {
+                if (sliderKeys.includes(e.key) && tempBudget !== budget) {
+                  handleBudgetChange(tempBudget);
+                }
+              }}
+            />
 
-            disabled={routeMetadata === 'NonTollRoute'}
-
-            className={`w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer transition-all duration-200
-                ${routeMetadata === 'NonTollRoute'
-                ? 'accent-gray-400 pointer-events-none opacity-60 [&::-webkit-slider-thumb]:bg-gray-400'
-                : 'accent-blue-600 [&::-webkit-slider-thumb]:bg-blue-600'
-              }`}
-          />
+          </div>
 
           {/* Budget text input */}
-          <input
-            type="number"
-            min="0"
-            max={maxTollCost}
-            step="5"
+          <NumberInput
+            min={0}
+            max={safeMax}
+            step={stepSize}
             value={tempBudget}
-            onChange={(e) => {
-              const val = Math.max(0, Math.min(500, Number(e.target.value)));
-              setTempBudget(val);
-              handleBudgetChange(val);
+            onChange={(val) => {
+              const numericVal = typeof val === 'number' ? val : Number(val);
+              const clampedVal = Math.max(0, Math.min(budgetAbsoluteMax, numericVal || 0));
+              setTempBudget(clampedVal);
+              handleBudgetChange(clampedVal);
             }}
             disabled={routeMetadata === 'NonTollRoute'}
-            className="
-              w-16 text-xs p-1 border rounded-md border-gray-300 focus:outline-none
-              focus:ring-1 focus:ring-blue-500 text-center bg-white text-gray-700
-              disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed
-            "
+            size="xs"
+            radius="md"
+            className="w-16"
+            styles={{
+              input: {
+                textAlign: 'center',
+              },
+            }}
           />
         </div>
-        {
-          routeMetadata === 'NonTollRoute' && (
-            <p className='text-xs font-medium text-red-700'>
-              This route does not use the 407 ETR
-            </p>
-          )
-        }
-        
+
+        {/* Budget Errors */}
+        {routeMetadata === 'NonTollRoute' && (
+          <p className="text-xs font-medium text-red-700 mt-5">
+            This route does not use the 407 ETR, budget not available
+          </p>
+        )}
       </div>
     </div>
   )
