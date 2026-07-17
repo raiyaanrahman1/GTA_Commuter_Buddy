@@ -10,36 +10,36 @@ import RoutingOptionsCard from './RoutingOptionsCard';
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 const routeLayer: LayerProps = {
-    id: 'route-line',
-    type: 'line',
-    layout: {
-      'line-join': 'round',
-      'line-cap': 'round'
-    },
-    paint: {
-      'line-color': [
-        'match',
-        ['get', 'route_type'],
-        'best', '#2563eb',      // Deep vibrant blue
-        'potential', '#94a3b8', // Muted slate gray
-        '#cccccc'
-      ],
-      'line-width': [
-        'match',
-        ['get', 'route_type'],
-        'best', 8,              // Much thicker
-        'potential', 5,         // Thinner
-        2
-      ],
-      'line-opacity': [
-        'match',
-        ['get', 'route_type'],
-        'best', 1,              // Fully opaque
-        'potential', 0.8,       // Semi-transparent to push it into background
-        0.5
-      ]
-    }
-  };
+  id: 'route-line',
+  type: 'line',
+  layout: {
+    'line-join': 'round',
+    'line-cap': 'round'
+  },
+  paint: {
+    'line-color': [
+      'match',
+      ['get', 'route_type'],
+      'best', '#2563eb',      // Deep vibrant blue
+      'potential', '#94a3b8', // Muted slate gray
+      '#cccccc'
+    ],
+    'line-width': [
+      'match',
+      ['get', 'route_type'],
+      'best', 8,              // Much thicker
+      'potential', 5,         // Thinner
+      2
+    ],
+    'line-opacity': [
+      'match',
+      ['get', 'route_type'],
+      'best', 1,              // Fully opaque
+      'potential', 0.8,       // Semi-transparent to push it into background
+      0.5
+    ]
+  }
+};
 
 export default function MapDisplay() {
   const mapRef = useRef<MapRef>(null);
@@ -47,7 +47,7 @@ export default function MapDisplay() {
   const [mapInstance, setMapInstance] = useState<mapboxgl.Map | undefined>(undefined);
   const [routeMetadata, setRouteMetadata] = useState<string | null>(null);
   const [maxTollCost, setMaxTollCost] = useState(200.0);
-  
+
   const [viewState, setViewState] = useState({
     longitude: -79.38,
     latitude: 43.65,
@@ -60,14 +60,16 @@ export default function MapDisplay() {
   const [routeData, setRouteData] = useState<GeoJSON.FeatureCollection<GeoJSON.Geometry> | null>(null);
 
   // Departure and Budget State
-  const [departureDttm, setDepartureDttm] = useState<string>(() => {
+  const getCurrentDttm = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
     // Formats into local YYYY-MM-DDTHH:MM format required by input[type="datetime-local"]
     return new Date(now.getTime() - offset).toISOString().slice(0, 16);
-  });
+  }
+  const [depTimeOption, setDepTimeOption] = useState('Leave Now');
+  const [departureDttm, setDepartureDttm] = useState<string>(() => getCurrentDttm());
   const [budget, setBudget] = useState<number>(0);
-  
+
   const clearFetchQueue = () => {
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
@@ -75,25 +77,27 @@ export default function MapDisplay() {
   }
 
   const fetchDirections = useCallback(async (
-      start: [number, number], 
-      end: [number, number],
-      depTime: string,
-      budVal: number
-    ) => {
-    console.log("Calling custom backend for directions:", { start, end });
+    start: [number, number],
+    end: [number, number],
+    depTime: string,
+    budVal: number
+  ) => {
+    // console.log("Calling custom backend for directions:", { start, end });
     try {
       console.log('Fetching directions from custom backend...');
+      const responseBody = JSON.stringify({
+        origin: [start[1], start[0]],
+        destination: [end[1], end[0]],
+        departure_dttm: new Date(depTime).toISOString(),
+        budget: budVal * 100.0
+      });
+      console.log(responseBody);
 
       const startTime = performance.now();
       const response = await fetch('http://localhost:8000/api/route', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          origin: [start[1], start[0]],
-          destination: [end[1], end[0]],
-          departure_dttm: new Date(depTime).toISOString(),
-          budget: budVal * 100.0
-        })
+        body: responseBody
       });
       interface responseType {
         data: GeoJSON.FeatureCollection,
@@ -107,7 +111,7 @@ export default function MapDisplay() {
       }: responseType = await response.json()
       const endTime = performance.now();
       const durationInSeconds = (endTime - startTime) / 1000;
-    
+
       console.log(`Backend fetch took ${durationInSeconds.toFixed(3)} seconds.`);
       console.log('Route data:', data);
       const tollCostDollars = toll_cost / 100;
@@ -143,7 +147,7 @@ export default function MapDisplay() {
     delay: number
   ) => {
     clearFetchQueue()
-    
+
     debounceTimeoutRef.current = setTimeout(() => {
       fetchDirections(start, end, depTime, budVal);
     }, delay);
@@ -194,6 +198,7 @@ export default function MapDisplay() {
 
   const handleDepartureChange = useCallback((newDttm: string) => {
     setDepartureDttm(newDttm);
+    // console.log(`handleDepartureChange: ${newDttm}`)
     if (origin && destination) {
       queueFetchDirections(origin, destination, newDttm, budget, 800);
     }
@@ -211,7 +216,7 @@ export default function MapDisplay() {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { longitude, latitude } = position.coords;
-          
+
           // Update map position
           setViewState((prev) => ({
             ...prev,
@@ -227,15 +232,41 @@ export default function MapDisplay() {
     }
   }
 
-  useEffect(getUserLocation, []);
-
   useEffect(() => {
+    // on mount
+    getUserLocation();
+
+    // on unmount
     return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (depTimeOption !== 'Leave Now') return;
+
+    // console.log('resetting date refresh timer');
+    const curDttm = getCurrentDttm();
+    // console.log(`currentDttm=${curDttm}`);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    handleDepartureChange(curDttm);
+
+    const intervalId = setInterval(() => {
+      // console.log('resetting date refresh timer');
+      const curDttm = getCurrentDttm();
+      // console.log(`currentDttm=${curDttm}`);
+      handleDepartureChange(curDttm);
+
+    }, 5 * 1000 * 60); // 5 minutes
+
+    // Cleanup function: runs on unmount or whenever depTimeOption changes
+    return () => {
+      // console.log(`clearing date refresh timer ${intervalId}`)
+      clearInterval(intervalId);
+    }
+  }, [depTimeOption, handleDepartureChange]);
 
   // 2. Safe Ref handling: Set state once map loads
   const onMapLoad = useCallback(() => {
@@ -245,12 +276,12 @@ export default function MapDisplay() {
   }, []);
 
   const originInputProximity: [number, number] = [
-    destination?.[0] ?? viewState.longitude, 
+    destination?.[0] ?? viewState.longitude,
     destination?.[1] ?? viewState.latitude
   ]
 
   const destinationInputProximity: [number, number] = [
-    origin?.[0] ?? viewState.longitude, 
+    origin?.[0] ?? viewState.longitude,
     origin?.[1] ?? viewState.latitude
   ]
 
@@ -265,6 +296,8 @@ export default function MapDisplay() {
         handleDestinationResult={handleDestinationResult}
         departureDttm={departureDttm}
         handleDepartureChange={handleDepartureChange}
+        depTimeOption={depTimeOption}
+        setDepTimeOption={setDepTimeOption}
         budget={budget}
         maxTollCost={maxTollCost}
         handleBudgetChange={handleBudgetChange}

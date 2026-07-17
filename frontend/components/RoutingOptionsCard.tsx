@@ -1,6 +1,8 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { Slider, NumberInput } from '@mantine/core';
+import dayjs from 'dayjs';
+import { Slider, NumberInput, Select } from '@mantine/core';
+import { DateTimePicker } from '@mantine/dates';
 import { useEffect, useState } from 'react';
 
 const MapSearchInput = dynamic(() => import('./MapSearchInput'), {
@@ -18,6 +20,8 @@ interface RoutingOptionsProps {
   handleDestinationResult: (coords: [number, number] | null) => void;
   departureDttm: string;
   handleDepartureChange: (val: string) => void;
+  depTimeOption: string;
+  setDepTimeOption: (val: string) => void;
   budget: number;
   maxTollCost: number;
   handleBudgetChange: (val: number) => void;
@@ -33,6 +37,8 @@ const RoutingOptionsCard = ({
   handleDestinationResult,
   departureDttm,
   handleDepartureChange,
+  depTimeOption,
+  setDepTimeOption,
   budget,
   maxTollCost,
   handleBudgetChange,
@@ -83,14 +89,39 @@ const RoutingOptionsCard = ({
       />
 
       {/* Departure Time Field */}
-      <div className="flex flex-col gap-1 mt-1">
+      <div className="flex flex-col gap-2 mt-1">
         <label className="text-xs font-semibold text-gray-500">Departure Time</label>
-        <input
-          type="datetime-local"
-          value={departureDttm}
-          onChange={(e) => handleDepartureChange(e.target.value)}
-          className="w-full text-xs p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+        <Select
+          data={['Leave Now', 'Depart At']}
+          value={depTimeOption}
+          onChange={newValue => {
+            if (newValue !== null) setDepTimeOption(newValue);
+          }}
         />
+        {
+          depTimeOption === 'Depart At' && (
+            <DateTimePicker
+              value={departureDttm}
+              valueFormat="MMMM DD, YYYY hh:mm A"
+              onChange={newDate => {
+                if (newDate !== null) handleDepartureChange(newDate);
+              }}
+              timePickerProps={{
+                format: '12h',
+                minutesStep: 5,
+                withDropdown: true 
+              }}
+              presets={[
+                { value: dayjs().format('YYYY-MM-DD HH:mm:ss'), label: 'Today' },
+                { value: dayjs().add(1, 'day').format('YYYY-MM-DD HH:mm:ss'), label: 'Tomorrow' },
+                { value: dayjs().add(7, 'day').format('YYYY-MM-DD HH:mm:ss'), label: 'Next Week' },
+                { value: dayjs().add(1, 'month').format('YYYY-MM-DD HH:mm:ss'), label: 'Next month' },
+              ]}
+              // className="w-full text-xs p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
+            />
+          )
+        }
+
       </div>
 
 
@@ -120,6 +151,12 @@ const RoutingOptionsCard = ({
               marks={marks}
 
               // Keyboard/Mouse interaction logic
+              /*
+                The slider uses this logic because after the knob has moved,
+                the user can keep it held down. If we used onChange it would send the request while
+                the mouse is still held down. This way, the request is only sent after the mouse has come up,
+                and the user has finalized their selection (debouncing also included)
+              */
               onMouseDown={() => clearFetchQueue()}
               onTouchStart={() => clearFetchQueue()}
               onKeyDown={(e) => {

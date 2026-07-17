@@ -18,7 +18,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[StateDict]:
     # Startup
     print("Loading route graph into memory...")
     route_graph_builder = RouteGraphBuilder()
-    route_cache: SlidingTTLCache[str, RouteState] = SlidingTTLCache(maxsize=100, ttl=600)
+    TTL = 300  # 5 minutes
+    route_cache: SlidingTTLCache[str, RouteState] = SlidingTTLCache(maxsize=100, ttl=TTL)
     
     # Note: passing in state variables directly into yield makes them only accessible in requests
     # They become merged into every request, but they are part of the request state, not the app state
