@@ -6,6 +6,7 @@ import Map, { MapRef, ViewStateChangeEvent, Marker, Source, Layer } from 'react-
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import RoutingOptionsCard from './RoutingOptionsCard';
+import { useIdle } from '@mantine/hooks';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -41,12 +42,15 @@ const routeLayer: LayerProps = {
   }
 };
 
+const LeaveNowRefreshInterval = 5 * 1000 * 60 // 5 minutes
+
 export default function MapDisplay() {
   const mapRef = useRef<MapRef>(null);
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mapInstance, setMapInstance] = useState<mapboxgl.Map | undefined>(undefined);
   const [routeMetadata, setRouteMetadata] = useState<string | null>(null);
   const [maxTollCost, setMaxTollCost] = useState(200.0);
+  const isIdle = useIdle(LeaveNowRefreshInterval, { initialState: false });
 
   const [viewState, setViewState] = useState({
     longitude: -79.38,
@@ -245,7 +249,8 @@ export default function MapDisplay() {
   }, []);
 
   useEffect(() => {
-    if (depTimeOption !== 'Leave Now') return;
+    // console.log(isIdle);
+    if (depTimeOption !== 'Leave Now' || isIdle) return;
 
     // console.log('resetting date refresh timer');
     const curDttm = getCurrentDttm();
@@ -259,14 +264,14 @@ export default function MapDisplay() {
       // console.log(`currentDttm=${curDttm}`);
       handleDepartureChange(curDttm);
 
-    }, 5 * 1000 * 60); // 5 minutes
+    }, LeaveNowRefreshInterval);
 
-    // Cleanup function: runs on unmount or whenever depTimeOption changes
+    // Cleanup clears the timer on unmount, when options change, or when the user goes idle
     return () => {
       // console.log(`clearing date refresh timer ${intervalId}`)
       clearInterval(intervalId);
     }
-  }, [depTimeOption, handleDepartureChange]);
+  }, [depTimeOption, isIdle, handleDepartureChange]);
 
   // 2. Safe Ref handling: Set state once map loads
   const onMapLoad = useCallback(() => {
