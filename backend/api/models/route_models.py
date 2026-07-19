@@ -5,9 +5,9 @@ from typing import Literal, Any
 
 
 class RouteRequest(BaseModel):
-    origin: tuple[float, float]
-    destination: tuple[float, float]
-    departure_dttm: datetime
+    origin: tuple[float, float] = Field(examples=[(43.393262, -79.802492)])
+    destination: tuple[float, float] = Field(examples=[(43.841385, -79.306418)])
+    departure_dttm: datetime = Field(examples=[datetime(2026, 3, 30, 7, 10)])
     budget: float
 
 class LineStringGeometry(BaseModel):

@@ -70,7 +70,9 @@ def compute_best_path(
 ):
     paths = get_best_paths(connected_graph, budget)
     best_path_plines = get_best_path_polylines(paths, intra_route_section_data, inter_route_section_data, connected_graph)
-    return best_path_plines
+    
+    time_and_money_costs = [(path[1], path[2]) for path in paths]
+    return best_path_plines, time_and_money_costs
 
 
 def get_user_routes_and_best_path(
@@ -93,7 +95,7 @@ def get_user_routes_and_best_path(
         route_graph_builder
     )
 
-    best_path_plines = compute_best_path(
+    best_path_plines, _ = compute_best_path(
         connected_graph,
         intra_route_section_data,
         inter_route_section_data,
