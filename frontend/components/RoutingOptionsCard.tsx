@@ -3,7 +3,7 @@ import dynamic from 'next/dynamic';
 import dayjs from 'dayjs';
 import { Slider, NumberInput, Select } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 const MapSearchInput = dynamic(() => import('./MapSearchInput'), {
   ssr: false,
@@ -46,12 +46,13 @@ const RoutingOptionsCard = ({
   routeMetadata
 }: RoutingOptionsProps) => {
   const [tempBudget, setTempBudget] = useState(budget);
+  const isDraggingRef = useRef(false);
   const sliderKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'];
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTempBudget(budget);
-  }, [budget]);
+    setTempBudget(Math.min(budget, maxTollCost));
+  }, [budget, maxTollCost]);
 
   const budgetAbsoluteMax = 200;
   const safeMax = maxTollCost > 0 ? maxTollCost : budgetAbsoluteMax;
@@ -157,14 +158,44 @@ const RoutingOptionsCard = ({
                 the mouse is still held down. This way, the request is only sent after the mouse has come up,
                 and the user has finalized their selection (debouncing also included)
               */
-              onMouseDown={() => clearFetchQueue()}
-              onTouchStart={() => clearFetchQueue()}
+              onMouseDown={() => {
+                clearFetchQueue();
+                isDraggingRef.current = true;
+              }}
+              onTouchStart={() => {
+                clearFetchQueue();
+                isDraggingRef.current = true;
+              }}
               onKeyDown={(e) => {
                 if (sliderKeys.includes(e.key)) clearFetchQueue();
               }}
+              onKeyUp={(e) => {
+                // Trigger only when they release the arrow key
+                if (sliderKeys.includes(e.key) && tempBudget !== budget) {
+                  handleBudgetChange(tempBudget);
+                }
+              }}
+              /* 
+                Changed from onMouseUp, onTouchEnd to onChangeEnd due to how event listeners work.
+                Previously, when this was an <input type="range"> element, those event listeners would trigger even
+                if the mouse was outside the element when it triggered. This is because the <input type="range">
+                is a special element that the browser grants Implicit Pointer Capture. When the element was changed
+                to a Mantine Slider component, this was no longer the case. So it was changed to a onChangeEnd event
+                (a Mantine-specific prop)
+
+                Contrary to the name "onChangeEnd", this gets trigerred when the user stops dragging the slider
+                (i.e. lifts the mouse) or when the value is changed with the keyboard - not when the knob position stops changing.
+                We want it to be able to be triggered even if the mouse is outside the component,
+                but it shouldn't be triggered while holding down one of the arrow keys - handleBudgetChange should only be triggered
+                when the key is lifted. Therefore, we use onChangeEnd with a ref checking if the slider
+                is being dragged (via the mouse or touch)
+              */ 
               onChangeEnd={(val) => {
-                if (val !== budget) {
-                  handleBudgetChange(val);
+                if (isDraggingRef.current) {
+                  isDraggingRef.current = false;
+                  if (val !== budget) {
+                    handleBudgetChange(val);
+                  }
                 }
               }}
             />
