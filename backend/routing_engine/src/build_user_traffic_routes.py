@@ -9,6 +9,7 @@ import flexpolyline as fpl
 import asyncio
 import aiohttp
 import json
+import math
 
 from routing_engine.src.helpers.build_traffic_routing_waypoints import TrafficWaypointsBuilder, StrWaypointsPerRoute
 from routing_engine.src.data_structures.connected_route_graph import ConnectedRouteGraph
@@ -290,6 +291,7 @@ def assign_toll_costs_to_graph(
 
     i = 0
     j = i
+    sum_of_costs = 0
     while i < len(toll_nodes) - 1:
         assert j < len(cost_per_interchange)
         node_id = toll_nodes[i]
@@ -299,7 +301,7 @@ def assign_toll_costs_to_graph(
         graph_start_interchange = connected_graph.graph.nodes[node_id]['interchange_name']
         graph_end_interchange = connected_graph.graph.nodes[toll_nodes[i + 1]]['interchange_name']
 
-        cost = cost_per_interchange[i]['cost_in_portion']
+        cost = cost_per_interchange[j]['cost_in_portion']
         if portion_start_interchange == graph_start_interchange and portion_end_interchange != graph_end_interchange:
             cost = 0.0
             while True:
@@ -324,7 +326,11 @@ def assign_toll_costs_to_graph(
         )
 
         connected_graph.graph[node_id][toll_nodes[i + 1]][0]['toll_cost'] = cost # type: ignore
+        sum_of_costs += cost
         i += 1
         j += 1
 
+    sum2 = sum(x['cost_in_portion'] for x in cost_per_interchange)
+    assert math.isclose(total_cost, sum2), (total_cost, sum2)
+    assert math.isclose(sum_of_costs, sum2) and math.isclose(sum_of_costs, total_cost), (sum_of_costs, sum2, len(cost_per_interchange))
     return total_cost
