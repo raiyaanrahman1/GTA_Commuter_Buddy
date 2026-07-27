@@ -7,6 +7,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import RoutingOptionsCard from './RoutingOptionsCard';
 import { useIdle } from '@mantine/hooks';
+import { LoadingOverlay } from '@mantine/core';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -50,6 +51,8 @@ export default function MapDisplay() {
   const [mapInstance, setMapInstance] = useState<mapboxgl.Map | undefined>(undefined);
   const [routeMetadata, setRouteMetadata] = useState<string | null>(null);
   const [maxTollCost, setMaxTollCost] = useState(200.0);
+  const [loadingVisible, setLoadingVisible] = useState(false);
+  const [loadingKey, setLoadingKey] = useState(0);
   const isIdle = useIdle(LeaveNowRefreshInterval, { initialState: false });
 
   const [viewState, setViewState] = useState({
@@ -79,6 +82,36 @@ export default function MapDisplay() {
       clearTimeout(debounceTimeoutRef.current);
     }
   }
+
+  const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const exitDuration = 1000;
+
+  const restartLoading = useCallback(() => {
+    // 1. Hide current overlay (this triggers fade-out)
+    setLoadingVisible(false);
+
+    // 2. After exit transition finishes, remount with new key
+    if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+
+    exitTimerRef.current = setTimeout(() => {
+      setLoadingKey((prev) => prev + 1);
+      setLoadingVisible(true);
+    }, exitDuration / 4);
+  }, []);
+
+  const startLoading = useCallback(() => {
+    if (loadingVisible) {
+      restartLoading();           // New request while loading → pulse effect
+    } else {
+      setLoadingVisible(true);
+    }
+  }, [loadingVisible, restartLoading]);
+
+  const stopLoading = useCallback(() => {
+    setLoadingVisible(false);
+  }, []);
+
+  const pendingRequests = useRef(0);
 
   const fetchDirections = useCallback(async (
     start: [number, number],
@@ -148,13 +181,19 @@ export default function MapDisplay() {
     delay: number
   ) => {
     clearFetchQueue()
+    startLoading();
 
-    debounceTimeoutRef.current = setTimeout(() => {
-        fetchDirections(start, end, depTime, budVal);
-      },
+    debounceTimeoutRef.current = setTimeout(async () => {
+      pendingRequests.current += 1;
+      await fetchDirections(start, end, depTime, budVal);
+      pendingRequests.current -= 1;
+      if (pendingRequests.current === 0) {
+        stopLoading();
+      }
+    },
       delay
     );
-  }, [fetchDirections]);
+  }, [fetchDirections, startLoading, stopLoading]);
 
   const fitMapBounds = useCallback((start: [number, number], end: [number, number]) => {
     if (mapRef.current) {
@@ -493,6 +532,13 @@ export default function MapDisplay() {
         mapStyle="mapbox://styles/mapbox/streets-v12"
         mapboxAccessToken={MAPBOX_TOKEN}
       >
+        <LoadingOverlay 
+          key={loadingKey}           // This forces remount/restart
+          visible={loadingVisible}
+          overlayProps={{ blur: 2 }}
+          zIndex={0}
+          transitionProps={{ transition: 'fade', duration: 200, exitDuration: exitDuration }}
+        />
         {routeData && (
           <Source id="my-route" type="geojson" data={routeData}>
             <Layer {...routeLayer} />
