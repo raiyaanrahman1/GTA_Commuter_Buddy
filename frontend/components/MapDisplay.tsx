@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useEffectEvent } from 'react';
 import type { LayerProps } from 'react-map-gl/mapbox';
 import Map, { MapRef, ViewStateChangeEvent, Marker, Source, Layer } from 'react-map-gl/mapbox';
 import mapboxgl from 'mapbox-gl';
@@ -150,8 +150,10 @@ export default function MapDisplay() {
     clearFetchQueue()
 
     debounceTimeoutRef.current = setTimeout(() => {
-      fetchDirections(start, end, depTime, budVal);
-    }, delay);
+        fetchDirections(start, end, depTime, budVal);
+      },
+      delay
+    );
   }, [fetchDirections]);
 
   const fitMapBounds = useCallback((start: [number, number], end: [number, number]) => {
@@ -197,11 +199,11 @@ export default function MapDisplay() {
     }
   }, [origin, departureDttm, budget, fitMapBounds, flyToCoords, queueFetchDirections]);
 
-  const handleDepartureChange = useCallback((newDttm: string) => {
+  const handleDepartureChange = useCallback((newDttm: string, delay: number) => {
     setDepartureDttm(newDttm);
     // console.log(`handleDepartureChange: ${newDttm}`)
     if (origin && destination) {
-      queueFetchDirections(origin, destination, newDttm, budget, 800);
+      queueFetchDirections(origin, destination, newDttm, budget, delay);
     }
   }, [origin, destination, budget, queueFetchDirections]);
 
@@ -245,6 +247,10 @@ export default function MapDisplay() {
     };
   }, []);
 
+  const onRefreshDeparture = useEffectEvent((newDttm: string) => {
+    handleDepartureChange(newDttm, 0);
+  });
+
   useEffect(() => {
     // console.log(isIdle);
     if (depTimeOption !== 'Leave Now' || isIdle) return;
@@ -253,13 +259,13 @@ export default function MapDisplay() {
     const curDttm = getCurrentDttm();
     // console.log(`currentDttm=${curDttm}`);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    handleDepartureChange(curDttm);
+    onRefreshDeparture(curDttm);
 
     const intervalId = setInterval(() => {
-      // console.log('resetting date refresh timer');
+      // console.log('resetting date refresh timer (in interval)');
       const curDttm = getCurrentDttm();
       // console.log(`currentDttm=${curDttm}`);
-      handleDepartureChange(curDttm);
+      onRefreshDeparture(curDttm);
 
     }, LeaveNowRefreshInterval);
 
@@ -268,7 +274,7 @@ export default function MapDisplay() {
       // console.log(`clearing date refresh timer ${intervalId}`)
       clearInterval(intervalId);
     }
-  }, [depTimeOption, isIdle, handleDepartureChange]);
+  }, [depTimeOption, isIdle]);
 
   // 2. Safe Ref handling: Set state once map loads
   const onMapLoad = useCallback(() => {

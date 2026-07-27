@@ -19,7 +19,7 @@ interface RoutingOptionsProps {
   handleOriginResult: (coords: [number, number] | null) => void;
   handleDestinationResult: (coords: [number, number] | null) => void;
   departureDttm: string;
-  handleDepartureChange: (val: string) => void;
+  handleDepartureChange: (val: string, delay: number) => void;
   depTimeOption: string;
   setDepTimeOption: (val: string) => void;
   budget: number;
@@ -104,7 +104,7 @@ const RoutingOptionsCard = ({
               value={departureDttm}
               valueFormat="MMMM DD, YYYY hh:mm A"
               onChange={newDate => {
-                if (newDate !== null) handleDepartureChange(newDate);
+                if (newDate !== null) handleDepartureChange(newDate, 800);
               }}
               timePickerProps={{
                 format: '12h',
