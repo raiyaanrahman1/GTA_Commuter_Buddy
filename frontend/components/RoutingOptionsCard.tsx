@@ -162,15 +162,9 @@ const RoutingOptionsCard = ({
               onKeyDown={(e) => {
                 if (sliderKeys.includes(e.key)) clearFetchQueue();
               }}
-              onMouseUp={() => {
-                if (tempBudget !== budget) handleBudgetChange(tempBudget);
-              }}
-              onTouchEnd={() => {
-                if (tempBudget !== budget) handleBudgetChange(tempBudget);
-              }}
-              onKeyUp={(e) => {
-                if (sliderKeys.includes(e.key) && tempBudget !== budget) {
-                  handleBudgetChange(tempBudget);
+              onChangeEnd={(val) => {
+                if (val !== budget) {
+                  handleBudgetChange(val);
                 }
               }}
             />

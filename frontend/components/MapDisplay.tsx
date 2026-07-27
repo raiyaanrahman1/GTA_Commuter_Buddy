@@ -125,10 +125,7 @@ export default function MapDisplay() {
       if (metadata === 'TollRoute') {
         filteredData = {
           ...data,
-          features: data.features.filter((f, i) => {
-            if (f.properties?.route_type === 'best') return true;
-            return i < 3;
-          })
+          features: data.features.filter(f => ['best', 'potential'].includes(f.properties?.route_type))
         }
       } else {
         setBudget(0);
@@ -290,6 +287,177 @@ export default function MapDisplay() {
     origin?.[1] ?? viewState.latitude
   ]
 
+  // ----------------- Duration/Cost Indicator Helpers ----------------- 
+  // Helper to format duration to "hours + minutes" if 60 minutes or above
+  const formatDuration = (seconds: number): string => {
+    const totalMins = Math.round(seconds / 60);
+    if (totalMins < 60) {
+      return `${totalMins} min`;
+    }
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    return mins > 0 ? `${hours} h ${mins} min` : `${hours} h`;
+  };
+
+  // Check if two coordinate arrays are identical
+  const isSameRoute = (coords1: [number, number][], coords2: [number, number][]): boolean => {
+    if (coords1.length !== coords2.length) return false;
+    const epsilon = 1e-6;
+    return coords1.every((c1, i) => {
+      const c2 = coords2[i];
+      return Math.abs(c1[0] - c2[0]) < epsilon && Math.abs(c1[1] - c2[1]) < epsilon;
+    });
+  };
+
+  // Identifies and extracts the midpoint of the longest section of routeCoords
+  // that does not overlap with ANY of the coordinate paths in allOtherCoords
+  const getLongestUniqueSegmentMidpointAll = (
+    routeCoords: [number, number][],
+    allOtherCoords: [number, number][][]
+  ): [number, number] => {
+    const threshold = 0.0015; // Threshold in degrees (~150 meters)
+
+    const segments: [number, number][][] = [];
+    let currentSegment: [number, number][] = [];
+
+    for (const coord of routeCoords) {
+      let isOverlapping = false;
+
+      // Check if this point overlaps with any point in any other route
+      for (const otherCoords of allOtherCoords) {
+        const overlap = otherCoords.some(
+          (otherCoord) => {
+            const dLng = coord[0] - otherCoord[0];
+            const dLat = coord[1] - otherCoord[1];
+            return dLng * dLng + dLat * dLat < threshold * threshold;
+          }
+        );
+        if (overlap) {
+          isOverlapping = true;
+          break;
+        }
+      }
+
+      if (!isOverlapping) {
+        currentSegment.push(coord);
+      } else {
+        if (currentSegment.length > 0) {
+          segments.push(currentSegment);
+          currentSegment = [];
+        }
+      }
+    }
+    if (currentSegment.length > 0) {
+      segments.push(currentSegment);
+    }
+
+    // Fallback if no unique segment is identified (e.g. routes are identical or entirely overlapping)
+    if (segments.length === 0) {
+      const midIndex = Math.floor(routeCoords.length / 2);
+      return routeCoords[midIndex];
+    }
+
+    // Pick the longest unique contiguous segment
+    let longestSegment = segments[0];
+    for (const seg of segments) {
+      if (seg.length > longestSegment.length) {
+        longestSegment = seg;
+      }
+    }
+
+    const midIndex = Math.floor(longestSegment.length / 2);
+    return longestSegment[midIndex];
+  };
+
+  interface LabelPosition {
+    longitude: number;
+    latitude: number;
+    featureIndex: number;
+  }
+
+  // Spatially disperses marker coordinates to prevent overlap on shared highways
+  const getSafeLabelPositions = (features: GeoJSON.Feature[]): LabelPosition[] => {
+    const positions: LabelPosition[] = [];
+    const minDistance = 0.005; // Degrees threshold (~500m) to prevent visual overlap between final markers
+
+    // Use a TypeScript Type Guard to narrow the type to Feature<LineString> and eliminate geometry warnings
+    const validRoutes = features.filter(
+      (f): f is GeoJSON.Feature<GeoJSON.LineString> => f.geometry.type === 'LineString'
+    );
+    if (validRoutes.length === 0) return [];
+
+    // Sort so the 'best' route is processed first, securing its label presence, 
+    // and subsequent identical routes can be safely ignored.
+    const sortedRoutes = [...validRoutes].sort((a, b) => {
+      const aBest = a.properties?.route_type === 'best' ? 1 : 0;
+      const bBest = b.properties?.route_type === 'best' ? 1 : 0;
+      return bBest - aBest;
+    });
+
+    const acceptedRouteCoords: [number, number][][] = [];
+
+    sortedRoutes.forEach((feature) => {
+      // Feature.geometry is now strictly typed as GeoJSON.LineString
+      const coords = feature.geometry.coordinates as [number, number][];
+      if (coords.length === 0) return;
+
+      // 1. Omit indicator if this route's geometry matches an already accepted route
+      const isDuplicate = acceptedRouteCoords.some(accepted => isSameRoute(coords, accepted));
+      if (isDuplicate) {
+        return;
+      }
+
+      acceptedRouteCoords.push(coords);
+
+      // Save index pointing to original features list
+      const originalIndex = features.indexOf(feature);
+
+      // Filter out the current route to isolate all other routes' coordinates
+      const allOtherCoords = validRoutes
+        .filter(f => f !== feature)
+        .map(f => f.geometry.coordinates as [number, number][]);
+
+      // 2. Position this route indicator
+      let [lng, lat]: [number, number] = [0, 0];
+      const isBest = feature.properties?.route_type === 'best';
+
+      if (isBest) {
+        // Best route indicator is always placed at its overall physical midpoint
+        const midIndex = Math.floor(coords.length * 0.5);
+        [lng, lat] = coords[midIndex];
+      } else {
+        // Other (potential) route indicators are placed at the midpoint of their largest unique section
+        [lng, lat] = getLongestUniqueSegmentMidpointAll(coords, allOtherCoords);
+      }
+
+      // 3. Keep visual collision check to resolve micro-overlaps with placed markers
+      let attempts = 0;
+      const step = Math.max(1, Math.floor(coords.length * 0.05));
+      const targetIndex = coords.findIndex(c => c[0] === lng && c[1] === lat);
+      const safeTargetIdx = targetIndex !== -1 ? targetIndex : Math.floor(coords.length * 0.5);
+
+      while (attempts < 10) {
+        const collision = positions.some(p => {
+          const dLng = p.longitude - lng;
+          const dLat = p.latitude - lat;
+          return Math.sqrt(dLng * dLng + dLat * dLat) < minDistance;
+        });
+
+        if (!collision) break;
+
+        const direction = attempts % 2 === 0 ? 1 : -1;
+        const offset = direction * step * (Math.floor(attempts / 2) + 1);
+        const newIndex = Math.min(coords.length - 1, Math.max(0, safeTargetIdx + offset));
+        [lng, lat] = coords[newIndex];
+        attempts++;
+      }
+
+      positions.push({ longitude: lng, latitude: lat, featureIndex: originalIndex });
+    });
+
+    return positions;
+  };
+
   return (
     <div className="relative w-full h-full">
       {/* Search overlay with two boxes */}
@@ -324,6 +492,55 @@ export default function MapDisplay() {
             <Layer {...routeLayer} />
           </Source>
         )}
+
+        {routeData && getSafeLabelPositions(routeData.features).map((pos) => {
+          const feature = routeData.features[pos.featureIndex];
+          const duration = feature.properties?.duration; // <-- Updated
+          const tollCost = feature.properties?.cost; // <-- Updated
+          const routeType = feature.properties?.route_type;
+
+          if (duration === undefined) return null;
+
+          const durationStr = formatDuration(duration);
+          const isBest = routeType === 'best';
+
+          return (
+            <Marker key={pos.featureIndex} longitude={pos.longitude} latitude={pos.latitude} anchor="center">
+              <div
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full shadow-md border text-[10px] font-bold select-none whitespace-nowrap 
+                  ${
+                  // ''
+                  'bg-white text-gray-700 border-gray-300'
+                  }
+                  ${
+                  ''
+                  // isBest
+                  //   ? 'bg-blue-400 text-white border-blue-400'
+                  //   : 'bg-white text-gray-700 border-gray-300'
+                  
+                  }
+                  `
+                }
+              >
+                <span className={isBest ? 'text-blue-600' : ''}>{durationStr}</span>
+                {tollCost !== undefined && tollCost > 0 ? (
+                  <>
+                    <span className={isBest ? 'text-gray-400' : 'text-gray-400'}>•</span>
+                    <span className={isBest ? 'text-green-600' : 'text-amber-500'}>
+                      ${(tollCost / 100).toFixed(2)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className={isBest ? 'text-gray-400' : 'text-gray-400'}>•</span>
+                    <span className={isBest ? 'text-gray-500' : 'text-gray-500'}>Free</span>
+                  </>
+                )}
+              </div>
+            </Marker>
+          );
+        })}
+
         {origin && (
           <Marker longitude={origin[0]} latitude={origin[1]} color="#22c55e" /> // Green for Start
         )}
