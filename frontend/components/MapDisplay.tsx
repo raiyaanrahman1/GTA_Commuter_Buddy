@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect, useEffectEvent } from 'react';
+import { useState, useRef, useCallback, useEffect, useEffectEvent, useMemo } from 'react';
 import type { LayerProps } from 'react-map-gl/mapbox';
 import Map, { MapRef, ViewStateChangeEvent, Marker, Source, Layer } from 'react-map-gl/mapbox';
 import mapboxgl from 'mapbox-gl';
@@ -8,6 +8,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import RoutingOptionsCard from './RoutingOptionsCard';
 import { useIdle } from '@mantine/hooks';
 import { LoadingOverlay } from '@mantine/core';
+import styles from './Map.module.css';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
@@ -76,6 +77,10 @@ export default function MapDisplay() {
   const [depTimeOption, setDepTimeOption] = useState('Leave Now');
   const [departureDttm, setDepartureDttm] = useState<string>(() => getCurrentDttm());
   const [budget, setBudget] = useState<number>(0);
+
+  // --- Animation States and Refs ---
+  const [animatedRouteData, setAnimatedRouteData] = useState<GeoJSON.FeatureCollection<GeoJSON.Geometry> | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   const clearFetchQueue = () => {
     if (debounceTimeoutRef.current) {
@@ -332,6 +337,83 @@ export default function MapDisplay() {
     origin?.[1] ?? viewState.latitude
   ]
 
+  // Animates drawing of the polylines from origin to destination on route update
+  useEffect(() => {
+    if (!routeData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAnimatedRouteData(null);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      return;
+    }
+
+    // Cancel any active animation loops
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    const duration = 4000; // Animation duration in milliseconds
+    const startTime = performance.now();
+
+    // Deep copy original geometries to avoid mutating original state references
+    const originalFeatures = routeData.features.map(f => {
+      if (f.geometry.type === 'LineString') {
+        const lineGeom = f.geometry as GeoJSON.LineString;
+        return {
+          ...f,
+          geometry: {
+            ...lineGeom,
+            coordinates: [...lineGeom.coordinates]
+          }
+        };
+      }
+      return f;
+    });
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+
+      // Smooth deceleration easing function (Cubic Out)
+      const easeCubicOut = (t: number) => 1 - Math.pow(1 - t, 3);
+      const easedProgress = easeCubicOut(progress);
+
+      const animatedFeatures = originalFeatures.map(f => {
+        if (f.geometry.type !== 'LineString') return f;
+        
+        const fullCoords = f.geometry.coordinates as [number, number][];
+        // Ensure we always render a minimum of 2 coordinates to form a valid line segment
+        const pointCount = Math.max(2, Math.floor(fullCoords.length * easedProgress));
+        
+        return {
+          ...f,
+          geometry: {
+            ...f.geometry,
+            coordinates: fullCoords.slice(0, pointCount)
+          }
+        };
+      });
+
+      setAnimatedRouteData({
+        ...routeData,
+        features: animatedFeatures as GeoJSON.Feature<GeoJSON.Geometry>[]
+      });
+
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [routeData]);
+
   // ----------------- Duration/Cost Indicator Helpers ----------------- 
   // Helper to format duration to "hours + minutes" if 60 minutes or above
   const formatDuration = (seconds: number): string => {
@@ -418,6 +500,7 @@ export default function MapDisplay() {
     longitude: number;
     latitude: number;
     featureIndex: number;
+    targetIndex: number;
   }
 
   // Spatially disperses marker coordinates to prevent overlap on shared highways
@@ -442,7 +525,6 @@ export default function MapDisplay() {
     const acceptedRouteCoords: [number, number][][] = [];
 
     sortedRoutes.forEach((feature) => {
-      // Feature.geometry is now strictly typed as GeoJSON.LineString
       const coords = feature.geometry.coordinates as [number, number][];
       if (coords.length === 0) return;
 
@@ -466,20 +548,25 @@ export default function MapDisplay() {
       let [lng, lat]: [number, number] = [0, 0];
       const isBest = feature.properties?.route_type === 'best';
 
+      let baseTargetIdx = 0;
       if (isBest) {
-        // Best route indicator is always placed at its overall physical midpoint
-        const midIndex = Math.floor(coords.length * 0.5);
-        [lng, lat] = coords[midIndex];
+        baseTargetIdx = Math.floor(coords.length * 0.5);
       } else {
-        // Other (potential) route indicators are placed at the midpoint of their largest unique section
-        [lng, lat] = getLongestUniqueSegmentMidpointAll(coords, allOtherCoords);
+        const midpoint = getLongestUniqueSegmentMidpointAll(coords, allOtherCoords);
+        baseTargetIdx = coords.findIndex(c => c[0] === midpoint[0] && c[1] === midpoint[1]);
+        if (baseTargetIdx === -1) {
+          baseTargetIdx = Math.floor(coords.length * 0.5);
+        }
       }
+
+      const lngLat = coords[baseTargetIdx];
+      lng = lngLat[0];
+      lat = lngLat[1];
 
       // 3. Keep visual collision check to resolve micro-overlaps with placed markers
       let attempts = 0;
       const step = Math.max(1, Math.floor(coords.length * 0.05));
-      const targetIndex = coords.findIndex(c => c[0] === lng && c[1] === lat);
-      const safeTargetIdx = targetIndex !== -1 ? targetIndex : Math.floor(coords.length * 0.5);
+      let finalIndex = baseTargetIdx;
 
       while (attempts < 10) {
         const collision = positions.some(p => {
@@ -492,16 +579,28 @@ export default function MapDisplay() {
 
         const direction = attempts % 2 === 0 ? 1 : -1;
         const offset = direction * step * (Math.floor(attempts / 2) + 1);
-        const newIndex = Math.min(coords.length - 1, Math.max(0, safeTargetIdx + offset));
-        [lng, lat] = coords[newIndex];
+        finalIndex = Math.min(coords.length - 1, Math.max(0, baseTargetIdx + offset));
+        const nextLngLat = coords[finalIndex];
+        lng = nextLngLat[0];
+        lat = nextLngLat[1];
         attempts++;
       }
 
-      positions.push({ longitude: lng, latitude: lat, featureIndex: originalIndex });
+      positions.push({
+        longitude: lng,
+        latitude: lat,
+        featureIndex: originalIndex,
+        targetIndex: finalIndex
+      });
     });
 
     return positions;
   };
+
+  const labelPositions = useMemo(() => {
+    if (!routeData) return [];
+    return getSafeLabelPositions(routeData.features);
+  }, [routeData]);
 
   return (
     <div className="relative w-full h-full">
@@ -532,23 +631,36 @@ export default function MapDisplay() {
         mapStyle="mapbox://styles/mapbox/streets-v12"
         mapboxAccessToken={MAPBOX_TOKEN}
       >
-        <LoadingOverlay 
+        <LoadingOverlay
           key={loadingKey}           // This forces remount/restart
           visible={loadingVisible}
           overlayProps={{ blur: 2 }}
           zIndex={0}
           transitionProps={{ transition: 'fade', duration: 200, exitDuration: exitDuration }}
         />
-        {routeData && (
-          <Source id="my-route" type="geojson" data={routeData}>
+
+        {/* Render the animated route lines */}
+        {animatedRouteData && (
+          <Source id="my-route" type="geojson" data={animatedRouteData}>
             <Layer {...routeLayer} />
           </Source>
         )}
 
-        {routeData && getSafeLabelPositions(routeData.features).map((pos) => {
+        {/* Wait until the drawing finishes, then fade the markers in */}
+        {animatedRouteData && routeData && labelPositions.map((pos) => {
           const feature = routeData.features[pos.featureIndex];
-          const duration = feature.properties?.duration; // <-- Updated
-          const tollCost = feature.properties?.cost; // <-- Updated
+
+          // Identify how many coordinates of this specific route line have drawn
+          const animatedFeature = animatedRouteData.features[pos.featureIndex];
+          const hasPassedMarker = animatedFeature &&
+            animatedFeature.geometry.type === 'LineString' &&
+            animatedFeature.geometry.coordinates.length >= pos.targetIndex;
+
+          // Only render when the route line reaches the marker location
+          if (!hasPassedMarker) return null;
+
+          const duration = feature.properties?.duration;
+          const tollCost = feature.properties?.cost;
           const routeType = feature.properties?.route_type;
 
           if (duration === undefined) return null;
@@ -559,33 +671,20 @@ export default function MapDisplay() {
           return (
             <Marker key={pos.featureIndex} longitude={pos.longitude} latitude={pos.latitude} anchor="center">
               <div
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-full shadow-md border text-[10px] font-bold select-none whitespace-nowrap 
-                  ${
-                  // ''
-                  'bg-white text-gray-700 border-gray-300'
-                  }
-                  ${
-                  ''
-                  // isBest
-                  //   ? 'bg-blue-400 text-white border-blue-400'
-                  //   : 'bg-white text-gray-700 border-gray-300'
-                  
-                  }
-                  `
-                }
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full shadow-md border text-[10px] font-bold select-none whitespace-nowrap bg-white text-gray-700 border-gray-300 ${styles.animatedMarker}`}
               >
                 <span className={isBest ? 'text-blue-600' : ''}>{durationStr}</span>
                 {tollCost !== undefined && tollCost > 0 ? (
                   <>
-                    <span className={isBest ? 'text-gray-400' : 'text-gray-400'}>•</span>
+                    <span className="text-gray-400">•</span>
                     <span className={isBest ? 'text-green-600' : 'text-amber-500'}>
                       ${(tollCost / 100).toFixed(2)}
                     </span>
                   </>
                 ) : (
                   <>
-                    <span className={isBest ? 'text-gray-400' : 'text-gray-400'}>•</span>
-                    <span className={isBest ? 'text-gray-500' : 'text-gray-500'}>Free</span>
+                    <span className="text-gray-400">•</span>
+                    <span className="text-gray-500">Free</span>
                   </>
                 )}
               </div>
@@ -594,10 +693,10 @@ export default function MapDisplay() {
         })}
 
         {origin && (
-          <Marker longitude={origin[0]} latitude={origin[1]} color="#22c55e" /> // Green for Start
+          <Marker longitude={origin[0]} latitude={origin[1]} color="#22c55e" />
         )}
         {destination && (
-          <Marker longitude={destination[0]} latitude={destination[1]} color="#ef4444" /> // Red for End
+          <Marker longitude={destination[0]} latitude={destination[1]} color="#ef4444" />
         )}
       </Map>
     </div>
