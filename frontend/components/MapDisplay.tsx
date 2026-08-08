@@ -12,36 +12,188 @@ import styles from './Map.module.css';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
-const routeLayer: LayerProps = {
-  id: 'route-line',
-  type: 'line',
-  layout: {
-    'line-join': 'round',
-    'line-cap': 'round'
-  },
-  paint: {
-    'line-color': [
-      'match',
-      ['get', 'route_type'],
-      'best', '#2563eb',      // Deep vibrant blue
-      'potential', '#94a3b8', // Muted slate gray
-      '#cccccc'
-    ],
-    'line-width': [
-      'match',
-      ['get', 'route_type'],
-      'best', 8,              // Much thicker
-      'potential', 5,         // Thinner
-      2
-    ],
-    'line-opacity': [
-      'match',
-      ['get', 'route_type'],
-      'best', 1,              // Fully opaque
-      'potential', 0.8,       // Semi-transparent to push it into background
-      0.5
-    ]
+// ----------------- Duration/Cost Indicator Helpers ----------------- 
+// Helper to format duration to "hours + minutes" if 60 minutes or above
+export const formatDuration = (seconds: number): string => {
+  const totalMins = Math.round(seconds / 60);
+  if (totalMins < 60) {
+    return `${totalMins} min`;
   }
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  return mins > 0 ? `${hours} h ${mins} min` : `${hours} h`;
+};
+
+// Check if two coordinate arrays are identical
+const isSameRoute = (coords1: [number, number][], coords2: [number, number][]): boolean => {
+  if (coords1.length !== coords2.length) return false;
+  const epsilon = 1e-6;
+  return coords1.every((c1, i) => {
+    const c2 = coords2[i];
+    return Math.abs(c1[0] - c2[0]) < epsilon && Math.abs(c1[1] - c2[1]) < epsilon;
+  });
+};
+
+// Identifies and extracts the midpoint of the longest section of routeCoords
+// that does not overlap with ANY of the coordinate paths in allOtherCoords
+const getLongestUniqueSegmentMidpointAll = (
+  routeCoords: [number, number][],
+  allOtherCoords: [number, number][][]
+): [number, number] => {
+  const threshold = 0.0015; // Threshold in degrees (~150 meters)
+
+  const segments: [number, number][][] = [];
+  let currentSegment: [number, number][] = [];
+
+  for (const coord of routeCoords) {
+    let isOverlapping = false;
+
+    // Check if this point overlaps with any point in any other route
+    for (const otherCoords of allOtherCoords) {
+      const overlap = otherCoords.some(
+        (otherCoord) => {
+          const dLng = coord[0] - otherCoord[0];
+          const dLat = coord[1] - otherCoord[1];
+          return dLng * dLng + dLat * dLat < threshold * threshold;
+        }
+      );
+      if (overlap) {
+        isOverlapping = true;
+        break;
+      }
+    }
+
+    if (!isOverlapping) {
+      currentSegment.push(coord);
+    } else {
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment);
+        currentSegment = [];
+      }
+    }
+  }
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment);
+  }
+
+  // Fallback if no unique segment is identified (e.g. routes are identical or entirely overlapping)
+  if (segments.length === 0) {
+    const midIndex = Math.floor(routeCoords.length / 2);
+    return routeCoords[midIndex];
+  }
+
+  // Pick the longest unique contiguous segment
+  let longestSegment = segments[0];
+  for (const seg of segments) {
+    if (seg.length > longestSegment.length) {
+      longestSegment = seg;
+    }
+  }
+
+  const midIndex = Math.floor(longestSegment.length / 2);
+  return longestSegment[midIndex];
+};
+
+interface LabelPosition {
+  longitude: number;
+  latitude: number;
+  featureIndex: number;
+  targetIndex: number;
+}
+
+// Spatially disperses marker coordinates to prevent overlap on shared highways
+const getSafeLabelPositions = (features: GeoJSON.Feature[]): LabelPosition[] => {
+  const positions: LabelPosition[] = [];
+  const minDistance = 0.005; // Degrees threshold (~500m) to prevent visual overlap between final markers
+
+  // Use a TypeScript Type Guard to narrow the type to Feature<LineString> and eliminate geometry warnings
+  const validRoutes = features.filter(
+    (f): f is GeoJSON.Feature<GeoJSON.LineString> => f.geometry.type === 'LineString'
+  );
+  if (validRoutes.length === 0) return [];
+
+  // Sort so the 'best' route is processed first, securing its label presence, 
+  // and subsequent identical routes can be safely ignored.
+  const sortedRoutes = [...validRoutes].sort((a, b) => {
+    const aBest = a.properties?.route_type === 'best' ? 1 : 0;
+    const bBest = b.properties?.route_type === 'best' ? 1 : 0;
+    return bBest - aBest;
+  });
+
+  const acceptedRouteCoords: [number, number][][] = [];
+
+  sortedRoutes.forEach((feature) => {
+    const coords = feature.geometry.coordinates as [number, number][];
+    if (coords.length === 0) return;
+
+    // 1. Omit indicator if this route's geometry matches an already accepted route
+    const isDuplicate = acceptedRouteCoords.some(accepted => isSameRoute(coords, accepted));
+    if (isDuplicate) {
+      return;
+    }
+
+    acceptedRouteCoords.push(coords);
+
+    // Save index pointing to original features list
+    const originalIndex = features.indexOf(feature);
+
+    // Filter out the current route to isolate all other routes' coordinates
+    const allOtherCoords = validRoutes
+      .filter(f => f !== feature)
+      .map(f => f.geometry.coordinates as [number, number][]);
+
+    // 2. Position this route indicator
+    let [lng, lat]: [number, number] = [0, 0];
+    const isBest = feature.properties?.route_type === 'best';
+
+    let baseTargetIdx = 0;
+    if (isBest) {
+      baseTargetIdx = Math.floor(coords.length * 0.5);
+    } else {
+      const midpoint = getLongestUniqueSegmentMidpointAll(coords, allOtherCoords);
+      baseTargetIdx = coords.findIndex(c => c[0] === midpoint[0] && c[1] === midpoint[1]);
+      // console.log(baseTargetIdx);
+      if (baseTargetIdx === -1) {
+        baseTargetIdx = Math.floor(coords.length * 0.5);
+      }
+    }
+
+    const lngLat = coords[baseTargetIdx];
+    lng = lngLat[0];
+    lat = lngLat[1];
+
+    // 3. Keep visual collision check to resolve micro-overlaps with placed markers
+    let attempts = 0;
+    const step = Math.max(1, Math.floor(coords.length * 0.05));
+    let finalIndex = baseTargetIdx;
+
+    while (attempts < 10) {
+      const collision = positions.some(p => {
+        const dLng = p.longitude - lng;
+        const dLat = p.latitude - lat;
+        return Math.sqrt(dLng * dLng + dLat * dLat) < minDistance;
+      });
+
+      if (!collision) break;
+
+      const direction = attempts % 2 === 0 ? 1 : -1;
+      const offset = direction * step * (Math.floor(attempts / 2) + 1);
+      finalIndex = Math.min(coords.length - 1, Math.max(0, baseTargetIdx + offset));
+      const nextLngLat = coords[finalIndex];
+      lng = nextLngLat[0];
+      lat = nextLngLat[1];
+      attempts++;
+    }
+
+    positions.push({
+      longitude: lng,
+      latitude: lat,
+      featureIndex: originalIndex,
+      targetIndex: finalIndex
+    });
+  });
+
+  return positions;
 };
 
 const LeaveNowRefreshInterval = 5 * 1000 * 60 // 5 minutes
@@ -61,6 +213,9 @@ export default function MapDisplay() {
     latitude: 43.65,
     zoom: 12
   });
+
+  // Highlight and Selection States
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
 
   // Directions State
   const [origin, setOrigin] = useState<[number, number] | null>(null);
@@ -168,7 +323,41 @@ export default function MapDisplay() {
       } else {
         setBudget(0);
       }
-      setRouteData(filteredData);
+
+      // Filter out alternative routes that have the exact same coordinates as the best route
+      const bestFeature = filteredData.features.find(f => f.properties?.route_type === 'best');
+      const bestCoords = bestFeature?.geometry.type === 'LineString'
+        ? (bestFeature.geometry.coordinates as [number, number][])
+        : null;
+
+      if (bestCoords) {
+        filteredData = {
+          ...filteredData,
+          features: filteredData.features.filter(f => {
+            const isBest = f.properties?.route_type === 'best';
+            if (isBest) return true;
+
+            if (f.geometry.type === 'LineString') {
+              const coords = f.geometry.coordinates as [number, number][];
+              const sameRoute = isSameRoute(coords, bestCoords);
+              // console.log(`sameRoute: ${sameRoute}`);
+              return !sameRoute;
+            }
+            return true;
+          })
+        };
+      }
+
+      // Enrich features with a sequential route_index for stable selection tracking
+      const enrichedFeatures = filteredData.features.map((f, idx) => ({
+        ...f,
+        properties: {
+          ...f.properties,
+          route_index: idx
+        }
+      }));
+
+      setRouteData({ ...filteredData, features: enrichedFeatures });
       setRouteMetadata(metadata);
       setMaxTollCost(roundedTollCost);
       clearFetchQueue();
@@ -320,7 +509,7 @@ export default function MapDisplay() {
     }
   }, [depTimeOption, isIdle]);
 
-  // 2. Safe Ref handling: Set state once map loads
+  // Safe Ref handling: Set state once map loads
   const onMapLoad = useCallback(() => {
     if (mapRef.current) {
       setMapInstance(mapRef.current.getMap());
@@ -336,6 +525,64 @@ export default function MapDisplay() {
     origin?.[0] ?? viewState.longitude,
     origin?.[1] ?? viewState.latitude
   ]
+
+  // Synchronize selection state to select the 'best' route by default when data loads
+  useEffect(() => {
+    if (routeData) {
+      const bestIdx = routeData.features.findIndex(f => f.properties?.route_type === 'best');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedRouteIndex(bestIdx !== -1 ? bestIdx : 0);
+    } else {
+      setSelectedRouteIndex(null);
+    }
+  }, [routeData]);
+
+  // Dynamically update the line styling based on the active selected route index
+  const routeLayer: LayerProps = useMemo(() => ({
+    id: 'route-line',
+    type: 'line',
+    layout: {
+      'line-join': 'round',
+      'line-cap': 'round',
+      'line-sort-key': [
+        'case',
+        ['==', ['get', 'route_index'], selectedRouteIndex],
+        2, // Render selected route on top
+        1  // Render others underneath
+      ]
+    },
+    paint: {
+      'line-color': [
+        'case',
+        ['==', ['get', 'route_index'], selectedRouteIndex],
+        '#2563eb', // Selected: Vibrant Blue
+        '#94a3b8'  // Unselected: Muted Slate Gray
+      ],
+      'line-width': [
+        'case',
+        ['==', ['get', 'route_index'], selectedRouteIndex],
+        8, // Selected: Thicker
+        5  // Unselected: Thinner
+      ],
+      'line-opacity': [
+        'case',
+        ['==', ['get', 'route_index'], selectedRouteIndex],
+        1.0,
+        0.8
+      ]
+    }
+  }), [selectedRouteIndex]);
+
+  // Map layer polyline click handler
+  const onMapClick = useCallback((event: mapboxgl.MapMouseEvent) => {
+    const clickedFeature = event.features?.[0];
+    if (clickedFeature && clickedFeature.properties) {
+      const clickedIndex = clickedFeature.properties.route_index;
+      if (clickedIndex !== undefined) {
+        setSelectedRouteIndex(Number(clickedIndex));
+      }
+    }
+  }, []);
 
   // Animates drawing of the polylines from origin to destination on route update
   useEffect(() => {
@@ -414,189 +661,6 @@ export default function MapDisplay() {
     };
   }, [routeData]);
 
-  // ----------------- Duration/Cost Indicator Helpers ----------------- 
-  // Helper to format duration to "hours + minutes" if 60 minutes or above
-  const formatDuration = (seconds: number): string => {
-    const totalMins = Math.round(seconds / 60);
-    if (totalMins < 60) {
-      return `${totalMins} min`;
-    }
-    const hours = Math.floor(totalMins / 60);
-    const mins = totalMins % 60;
-    return mins > 0 ? `${hours} h ${mins} min` : `${hours} h`;
-  };
-
-  // Check if two coordinate arrays are identical
-  const isSameRoute = (coords1: [number, number][], coords2: [number, number][]): boolean => {
-    if (coords1.length !== coords2.length) return false;
-    const epsilon = 1e-6;
-    return coords1.every((c1, i) => {
-      const c2 = coords2[i];
-      return Math.abs(c1[0] - c2[0]) < epsilon && Math.abs(c1[1] - c2[1]) < epsilon;
-    });
-  };
-
-  // Identifies and extracts the midpoint of the longest section of routeCoords
-  // that does not overlap with ANY of the coordinate paths in allOtherCoords
-  const getLongestUniqueSegmentMidpointAll = (
-    routeCoords: [number, number][],
-    allOtherCoords: [number, number][][]
-  ): [number, number] => {
-    const threshold = 0.0015; // Threshold in degrees (~150 meters)
-
-    const segments: [number, number][][] = [];
-    let currentSegment: [number, number][] = [];
-
-    for (const coord of routeCoords) {
-      let isOverlapping = false;
-
-      // Check if this point overlaps with any point in any other route
-      for (const otherCoords of allOtherCoords) {
-        const overlap = otherCoords.some(
-          (otherCoord) => {
-            const dLng = coord[0] - otherCoord[0];
-            const dLat = coord[1] - otherCoord[1];
-            return dLng * dLng + dLat * dLat < threshold * threshold;
-          }
-        );
-        if (overlap) {
-          isOverlapping = true;
-          break;
-        }
-      }
-
-      if (!isOverlapping) {
-        currentSegment.push(coord);
-      } else {
-        if (currentSegment.length > 0) {
-          segments.push(currentSegment);
-          currentSegment = [];
-        }
-      }
-    }
-    if (currentSegment.length > 0) {
-      segments.push(currentSegment);
-    }
-
-    // Fallback if no unique segment is identified (e.g. routes are identical or entirely overlapping)
-    if (segments.length === 0) {
-      const midIndex = Math.floor(routeCoords.length / 2);
-      return routeCoords[midIndex];
-    }
-
-    // Pick the longest unique contiguous segment
-    let longestSegment = segments[0];
-    for (const seg of segments) {
-      if (seg.length > longestSegment.length) {
-        longestSegment = seg;
-      }
-    }
-
-    const midIndex = Math.floor(longestSegment.length / 2);
-    return longestSegment[midIndex];
-  };
-
-  interface LabelPosition {
-    longitude: number;
-    latitude: number;
-    featureIndex: number;
-    targetIndex: number;
-  }
-
-  // Spatially disperses marker coordinates to prevent overlap on shared highways
-  const getSafeLabelPositions = (features: GeoJSON.Feature[]): LabelPosition[] => {
-    const positions: LabelPosition[] = [];
-    const minDistance = 0.005; // Degrees threshold (~500m) to prevent visual overlap between final markers
-
-    // Use a TypeScript Type Guard to narrow the type to Feature<LineString> and eliminate geometry warnings
-    const validRoutes = features.filter(
-      (f): f is GeoJSON.Feature<GeoJSON.LineString> => f.geometry.type === 'LineString'
-    );
-    if (validRoutes.length === 0) return [];
-
-    // Sort so the 'best' route is processed first, securing its label presence, 
-    // and subsequent identical routes can be safely ignored.
-    const sortedRoutes = [...validRoutes].sort((a, b) => {
-      const aBest = a.properties?.route_type === 'best' ? 1 : 0;
-      const bBest = b.properties?.route_type === 'best' ? 1 : 0;
-      return bBest - aBest;
-    });
-
-    const acceptedRouteCoords: [number, number][][] = [];
-
-    sortedRoutes.forEach((feature) => {
-      const coords = feature.geometry.coordinates as [number, number][];
-      if (coords.length === 0) return;
-
-      // 1. Omit indicator if this route's geometry matches an already accepted route
-      const isDuplicate = acceptedRouteCoords.some(accepted => isSameRoute(coords, accepted));
-      if (isDuplicate) {
-        return;
-      }
-
-      acceptedRouteCoords.push(coords);
-
-      // Save index pointing to original features list
-      const originalIndex = features.indexOf(feature);
-
-      // Filter out the current route to isolate all other routes' coordinates
-      const allOtherCoords = validRoutes
-        .filter(f => f !== feature)
-        .map(f => f.geometry.coordinates as [number, number][]);
-
-      // 2. Position this route indicator
-      let [lng, lat]: [number, number] = [0, 0];
-      const isBest = feature.properties?.route_type === 'best';
-
-      let baseTargetIdx = 0;
-      if (isBest) {
-        baseTargetIdx = Math.floor(coords.length * 0.5);
-      } else {
-        const midpoint = getLongestUniqueSegmentMidpointAll(coords, allOtherCoords);
-        baseTargetIdx = coords.findIndex(c => c[0] === midpoint[0] && c[1] === midpoint[1]);
-        if (baseTargetIdx === -1) {
-          baseTargetIdx = Math.floor(coords.length * 0.5);
-        }
-      }
-
-      const lngLat = coords[baseTargetIdx];
-      lng = lngLat[0];
-      lat = lngLat[1];
-
-      // 3. Keep visual collision check to resolve micro-overlaps with placed markers
-      let attempts = 0;
-      const step = Math.max(1, Math.floor(coords.length * 0.05));
-      let finalIndex = baseTargetIdx;
-
-      while (attempts < 10) {
-        const collision = positions.some(p => {
-          const dLng = p.longitude - lng;
-          const dLat = p.latitude - lat;
-          return Math.sqrt(dLng * dLng + dLat * dLat) < minDistance;
-        });
-
-        if (!collision) break;
-
-        const direction = attempts % 2 === 0 ? 1 : -1;
-        const offset = direction * step * (Math.floor(attempts / 2) + 1);
-        finalIndex = Math.min(coords.length - 1, Math.max(0, baseTargetIdx + offset));
-        const nextLngLat = coords[finalIndex];
-        lng = nextLngLat[0];
-        lat = nextLngLat[1];
-        attempts++;
-      }
-
-      positions.push({
-        longitude: lng,
-        latitude: lat,
-        featureIndex: originalIndex,
-        targetIndex: finalIndex
-      });
-    });
-
-    return positions;
-  };
-
   const labelPositions = useMemo(() => {
     if (!routeData) return [];
     return getSafeLabelPositions(routeData.features);
@@ -620,6 +684,9 @@ export default function MapDisplay() {
         handleBudgetChange={handleBudgetChange}
         clearFetchQueue={clearFetchQueue}
         routeMetadata={routeMetadata}
+        routeData={routeData}
+        selectedRouteIndex={selectedRouteIndex}
+        setSelectedRouteIndex={setSelectedRouteIndex}
       />
 
       <Map
@@ -627,6 +694,8 @@ export default function MapDisplay() {
         ref={mapRef}
         onMove={(evt: ViewStateChangeEvent) => setViewState(evt.viewState)}
         onLoad={onMapLoad}
+        onClick={onMapClick}
+        interactiveLayerIds={routeData ? ['route-line'] : undefined}
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/streets-v12"
         mapboxAccessToken={MAPBOX_TOKEN}
@@ -662,29 +731,39 @@ export default function MapDisplay() {
           const duration = feature.properties?.duration;
           const tollCost = feature.properties?.cost;
           const routeType = feature.properties?.route_type;
+          const isBest = routeType === 'best'; 
+          const isSelected = pos.featureIndex === selectedRouteIndex;
 
           if (duration === undefined) return null;
 
           const durationStr = formatDuration(duration);
-          const isBest = routeType === 'best';
 
           return (
             <Marker key={pos.featureIndex} longitude={pos.longitude} latitude={pos.latitude} anchor="center">
               <div
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-full shadow-md border text-[10px] font-bold select-none whitespace-nowrap bg-white text-gray-700 border-gray-300 ${styles.animatedMarker}`}
+                onClick={(e) => {
+                  e.stopPropagation(); // Stop click from propagating into map layer click
+                  setSelectedRouteIndex(pos.featureIndex);
+                }}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full shadow-md border text-[10px] font-bold select-none cursor-pointer transition-all duration-200 
+                  ${
+                    isSelected
+                      ? 'bg-blue-50 border-blue-500 text-blue-700 scale-105 z-10'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                  } ${styles.animatedMarker}`}
               >
-                <span className={isBest ? 'text-blue-600' : ''}>{durationStr}</span>
+                <span className={isSelected ? 'text-blue-700 font-extrabold' : ''}>{durationStr}</span>
                 {tollCost !== undefined && tollCost > 0 ? (
                   <>
-                    <span className="text-gray-400">•</span>
-                    <span className={isBest ? 'text-green-600' : 'text-amber-500'}>
+                    <span className={isSelected ? 'text-blue-300' : 'text-gray-400'}>•</span>
+                    <span className={isBest ? 'text-green-600 font-extrabold' : 'text-amber-500'}>
                       ${(tollCost / 100).toFixed(2)}
                     </span>
                   </>
                 ) : (
                   <>
-                    <span className="text-gray-400">•</span>
-                    <span className="text-gray-500">Free</span>
+                    <span className={isSelected ? 'text-blue-300' : 'text-gray-400'}>•</span>
+                    <span className={isSelected ? 'text-blue-500' : 'text-gray-500'}>No Tolls</span>
                   </>
                 )}
               </div>
