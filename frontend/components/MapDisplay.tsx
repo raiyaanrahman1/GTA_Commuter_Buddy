@@ -7,7 +7,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import RoutingOptionsCard from './RoutingOptionsCard';
 import { useIdle } from '@mantine/hooks';
-import { LoadingOverlay } from '@mantine/core';
+import { LoadingOverlay, Loader, Text } from '@mantine/core';
 import styles from './Map.module.css';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
@@ -152,7 +152,7 @@ const getSafeLabelPositions = (features: GeoJSON.Feature[]): LabelPosition[] => 
     } else {
       const midpoint = getLongestUniqueSegmentMidpointAll(coords, allOtherCoords);
       baseTargetIdx = coords.findIndex(c => c[0] === midpoint[0] && c[1] === midpoint[1]);
-      // console.log(baseTargetIdx);
+      console.log(baseTargetIdx);
       if (baseTargetIdx === -1) {
         baseTargetIdx = Math.floor(coords.length * 0.5);
       }
@@ -196,7 +196,7 @@ const getSafeLabelPositions = (features: GeoJSON.Feature[]): LabelPosition[] => 
   return positions;
 };
 
-const LeaveNowRefreshInterval = 5 * 1000 * 60 // 5 minutes
+const LeaveNowRefreshInterval = 5 * 1000 * 60; // 5 minutes
 
 export default function MapDisplay() {
   const mapRef = useRef<MapRef>(null);
@@ -206,6 +206,7 @@ export default function MapDisplay() {
   const [maxTollCost, setMaxTollCost] = useState(200.0);
   const [loadingVisible, setLoadingVisible] = useState(false);
   const [loadingKey, setLoadingKey] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const isIdle = useIdle(LeaveNowRefreshInterval, { initialState: false });
 
   const [viewState, setViewState] = useState({
@@ -269,6 +270,7 @@ export default function MapDisplay() {
 
   const stopLoading = useCallback(() => {
     setLoadingVisible(false);
+    setLoadingMessage(null);
   }, []);
 
   const pendingRequests = useRef(0);
@@ -340,7 +342,7 @@ export default function MapDisplay() {
             if (f.geometry.type === 'LineString') {
               const coords = f.geometry.coordinates as [number, number][];
               const sameRoute = isSameRoute(coords, bestCoords);
-              // console.log(`sameRoute: ${sameRoute}`);
+              console.log(`sameRoute: ${sameRoute}`);
               return !sameRoute;
             }
             return true;
@@ -372,9 +374,11 @@ export default function MapDisplay() {
     end: [number, number],
     depTime: string,
     budVal: number,
-    delay: number
+    delay: number,
+    message: string | null = null
   ) => {
-    clearFetchQueue()
+    clearFetchQueue();
+    setLoadingMessage(message);
     startLoading();
 
     debounceTimeoutRef.current = setTimeout(async () => {
@@ -432,11 +436,11 @@ export default function MapDisplay() {
     }
   }, [origin, departureDttm, budget, fitMapBounds, flyToCoords, queueFetchDirections]);
 
-  const handleDepartureChange = useCallback((newDttm: string, delay: number) => {
+  const handleDepartureChange = useCallback((newDttm: string, delay: number, message: string | null = null) => {
     setDepartureDttm(newDttm);
     // console.log(`handleDepartureChange: ${newDttm}`)
     if (origin && destination) {
-      queueFetchDirections(origin, destination, newDttm, budget, delay);
+      queueFetchDirections(origin, destination, newDttm, budget, delay, message);
     }
   }, [origin, destination, budget, queueFetchDirections]);
 
@@ -481,7 +485,7 @@ export default function MapDisplay() {
   }, []);
 
   const onRefreshDeparture = useEffectEvent((newDttm: string) => {
-    handleDepartureChange(newDttm, 0);
+    handleDepartureChange(newDttm, 0, 'Getting you the latest results...');
   });
 
   useEffect(() => {
@@ -706,6 +710,18 @@ export default function MapDisplay() {
           overlayProps={{ blur: 2 }}
           zIndex={0}
           transitionProps={{ transition: 'fade', duration: 200, exitDuration: exitDuration }}
+          loaderProps={{
+            children: (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <Loader size="md" color="blue" />
+                {loadingMessage && (
+                  <Text size="sm" fw={700} c="blue.6">
+                    {loadingMessage}
+                  </Text>
+                )}
+              </div>
+            )
+          }}
         />
 
         {/* Render the animated route lines */}
