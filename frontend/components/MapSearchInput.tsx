@@ -14,6 +14,27 @@ interface MapSearchInputProps {
   onResult: (coords: [number, number] | null) => void;
 }
 
+interface CachedLocation {
+  coords: [number, number];
+  accuracy: number; // 95% confidence radius in meters
+}
+
+// Flat-surface approximation helper to find local distance in meters
+const getDistanceInMeters = (coord1: [number, number], coord2: [number, number]): number => {
+  const [lng1, lat1] = coord1;
+  const [lng2, lat2] = coord2;
+  const earthRadius = 6371000;
+  
+  const latMidRad = ((lat1 + lat2) / 2) * (Math.PI / 180);
+  const dLatRad = (lat2 - lat1) * (Math.PI / 180);
+  const dLngRad = (lng2 - lng1) * (Math.PI / 180);
+  
+  const x = dLngRad * Math.cos(latMidRad);
+  const y = dLatRad;
+  
+  return Math.sqrt(x * x + y * y) * earthRadius;
+};
+
 export default function MapSearchInput({
   accessToken,
   proximity,
@@ -27,12 +48,16 @@ export default function MapSearchInput({
   // Debounce input value by 300ms to reduce Mapbox billable keypress requests
   const [debouncedQuery] = useDebouncedValue(value, 300);
 
-  // A bulletproof state machine flag to control whether suggest requests are allowed
+  // A stable flag to control whether suggest requests are allowed
   const shouldSuggestRef = useRef(true);
 
+  // Store both coordinates and certainty radius to calculate circle intersections
+  const lastGeolocRef = useRef<CachedLocation | null>(null);
+
+  // Keep a session token in a stable Ref (fixes the stuck loading spinner)
   const sessionTokenRef = useRef<SessionToken | null>(null);
   
-  // Strict null check pattern allowed by the React Compiler for lazy initialization
+  // Lazily initialize the session token on the client side
   if (sessionTokenRef.current === null) {
     sessionTokenRef.current = new SessionToken();
   }
@@ -46,20 +71,16 @@ export default function MapSearchInput({
 
   // Query Mapbox Search API when debounced query updates
   useEffect(() => {
-    // Avoid API queries for empty strings, selected items, or when suggestions are explicitly disabled
     if (
       debouncedQuery.trim().length === 0 || 
       debouncedQuery === 'Your Location' || 
       !shouldSuggestRef.current
     ) {
-      // NOTE: Removed all synchronous state-setting to satisfy React 19 rules
       return;
     }
 
     let active = true;
 
-    // We don't need to call setLoading(true) synchronously here because it was 
-    // already set instantly in the onChange typing event handler.
     searchBox.suggest(debouncedQuery, {
       proximity,
       types: 'address,poi',
@@ -88,12 +109,13 @@ export default function MapSearchInput({
   const handleClear = useCallback(() => {
     setValue('');
     setSuggestions([]);
-    setLoading(false); // Handle loading reset synchronously on clear
+    setLoading(false);
+    lastGeolocRef.current = null; // Clear stable geoloc ref on input clear
     shouldSuggestRef.current = true; // Allow search suggestions again once cleared
     onResult(null); // Notify parent to clear origin/destination coordinate markers
   }, [onResult]);
 
-  // Handle browser GPS geocoding lookup
+  // Handle browser GPS geocoding lookup with intersecting uncertainty circles
   const handleUseCurrentLocation = useCallback(() => {
     if ('geolocation' in navigator) {
       setLoading(true);
@@ -101,9 +123,37 @@ export default function MapSearchInput({
       
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const { longitude, latitude } = position.coords;
-          const coords: [number, number] = [longitude, latitude];
-          
+          const { longitude, latitude, accuracy } = position.coords;
+          let coords: [number, number] = [longitude, latitude];
+          const currentAccuracy = accuracy ?? 15; // Default fallback to 15m if accuracy is null
+
+          if (lastGeolocRef.current !== null) {
+            const distanceMeters = getDistanceInMeters(coords, lastGeolocRef.current.coords);
+            const sumOfRadii = lastGeolocRef.current.accuracy + currentAccuracy;
+
+            // Precision refinement check: If new reading is significantly more accurate (e.g., 25% or greater improvement),
+            // we adopt it anyway to resolve coarse cellular locks.
+            const isSignificantlyMoreAccurate = currentAccuracy < lastGeolocRef.current.accuracy * 0.75;
+
+            if (distanceMeters <= sumOfRadii && !isSignificantlyMoreAccurate) {
+              // Circles intersect and precision is comparable; keep the stable cached location
+              coords = lastGeolocRef.current.coords;
+              console.log('comparable locations and precision');
+              console.log(distanceMeters);
+              console.log(isSignificantlyMoreAccurate, lastGeolocRef.current.accuracy, currentAccuracy);
+
+            } else {
+              // Circles do not intersect (actual movement) OR precision improved; update reference
+              console.log('different locations or precision');
+              console.log(distanceMeters);
+              console.log(isSignificantlyMoreAccurate, lastGeolocRef.current.accuracy, currentAccuracy);
+              lastGeolocRef.current = { coords, accuracy: currentAccuracy };
+            }
+          } else {
+            // First time getting location; save coordinates and confidence radius
+            lastGeolocRef.current = { coords, accuracy: currentAccuracy };
+          }
+
           shouldSuggestRef.current = false; // Block suggest API for "Your Location" selection
           setValue('Your Location');
           setSuggestions([]);
@@ -113,6 +163,11 @@ export default function MapSearchInput({
         (error) => {
           console.error("GPS location resolution failed:", error);
           setLoading(false);
+        },
+        {
+          enableHighAccuracy: true, // Request fine GPS/Wi-Fi positioning
+          timeout: 6000,            // Wait up to 6 seconds for a lock
+          maximumAge: 0             // Force fresh hardware queries
         }
       );
     }
@@ -206,10 +261,10 @@ export default function MapSearchInput({
             // Allow suggestions to load again as soon as user edits/types
             shouldSuggestRef.current = true;
             
+            // Instantly clear out states synchronously on empty string input (bypasses React 19 warning)
             if (newVal.trim().length === 0) {
               handleClear();
             } else {
-              // Set loading instantly during keypress (prevents 300ms delayed flicker)
               setLoading(true);
             }
             
