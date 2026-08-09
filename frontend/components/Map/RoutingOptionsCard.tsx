@@ -1,10 +1,13 @@
 'use client';
+
 import dynamic from 'next/dynamic';
 import dayjs from 'dayjs';
 import { Slider, NumberInput, Select } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { useEffect, useState, useRef } from 'react';
-import { formatDuration } from './MapDisplay';
+import { formatDuration } from './utils/routeUtils';
+import type { RouteState, RouteActions } from './types';
+import type mapboxgl from 'mapbox-gl';
 
 const MapSearchInput = dynamic(() => import('./MapSearchInput'), {
   ssr: false,
@@ -15,43 +18,37 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 interface RoutingOptionsProps {
   mapInstance: mapboxgl.Map | undefined;
-  originInputProximity: [number, number],
-  destinationInputProximity: [number, number]
-  handleOriginResult: (coords: [number, number] | null) => void;
-  handleDestinationResult: (coords: [number, number] | null) => void;
-  departureDttm: string;
-  handleDepartureChange: (val: string, delay: number) => void;
-  depTimeOption: string;
-  setDepTimeOption: (val: string) => void;
-  budget: number;
-  maxTollCost: number;
-  handleBudgetChange: (val: number) => void;
-  clearFetchQueue: () => void;
-  routeMetadata: string | null;
-  routeData: GeoJSON.FeatureCollection | null;
-  selectedRouteIndex: number | null;
-  setSelectedRouteIndex: (val: number | null) => void;
+  routeState: RouteState;
+  routeActions: RouteActions;
 }
 
 const RoutingOptionsCard = ({
   mapInstance,
-  originInputProximity,
-  destinationInputProximity,
-  handleOriginResult,
-  handleDestinationResult,
-  departureDttm,
-  handleDepartureChange,
-  depTimeOption,
-  setDepTimeOption,
-  budget,
-  maxTollCost,
-  handleBudgetChange,
-  clearFetchQueue,
-  routeMetadata,
-  routeData,
-  selectedRouteIndex,
-  setSelectedRouteIndex
+  routeState,
+  routeActions
 }: RoutingOptionsProps) => {
+  const {
+    originInputProximity,
+    destinationInputProximity,
+    departureDttm,
+    depTimeOption,
+    budget,
+    maxTollCost,
+    routeMetadata,
+    routeData,
+    selectedRouteIndex
+  } = routeState;
+
+  const {
+    handleOriginResult,
+    handleDestinationResult,
+    handleDepartureChange,
+    setDepTimeOption,
+    handleBudgetChange,
+    clearFetchQueue,
+    setSelectedRouteIndex
+  } = routeActions;
+
   const [tempBudget, setTempBudget] = useState(budget);
   const isDraggingRef = useRef(false);
   const sliderKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'];
@@ -72,10 +69,12 @@ const RoutingOptionsCard = ({
   ];
   for (let i = 0; i < 4; i++) {
     const val = safeMax * (i + 1) * 0.25;
-    if (val % stepSize === 0) marks.push({
-      value: val,
-      label: `$${val}`
-    })
+    if (val % stepSize === 0) {
+      marks.push({
+        value: val,
+        label: `$${val}`
+      });
+    }
   }
 
   return (
@@ -109,7 +108,7 @@ const RoutingOptionsCard = ({
         {
           depTimeOption === 'Depart At' && (
             <DateTimePicker
-              value={departureDttm}
+              value={departureDttm ? new Date(departureDttm) : null}
               valueFormat="MMMM DD, YYYY hh:mm A"
               onChange={newDate => {
                 if (newDate !== null) handleDepartureChange(newDate, 800);
@@ -125,13 +124,10 @@ const RoutingOptionsCard = ({
                 { value: dayjs().add(7, 'day').format('YYYY-MM-DD HH:mm:ss'), label: 'Next Week' },
                 { value: dayjs().add(1, 'month').format('YYYY-MM-DD HH:mm:ss'), label: 'Next month' },
               ]}
-              // className="w-full text-xs p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
             />
           )
         }
-
       </div>
-
 
       {/* Budget Controls */}
       <div className="flex flex-col gap-1 mt-1">
@@ -182,6 +178,7 @@ const RoutingOptionsCard = ({
                   handleBudgetChange(tempBudget);
                 }
               }}
+
               /* 
                 Changed from onMouseUp, onTouchEnd to onChangeEnd due to how event listeners work.
                 Previously, when this was an <input type="range"> element, those event listeners would trigger even
@@ -206,7 +203,6 @@ const RoutingOptionsCard = ({
                 }
               }}
             />
-
           </div>
 
           {/* Budget text input */}
@@ -234,11 +230,13 @@ const RoutingOptionsCard = ({
         </div>
 
         {/* Budget Errors */}
-        {routeMetadata === 'NonTollRoute' && (
+        {routeMetadata === 'NonTollRoute' ? (
           <p className="text-xs font-medium text-red-700 mt-5">
             This route does not use the 407 ETR, budget not available
           </p>
-        ) || (<div className='mt-3'/>)}
+        ) : (
+          <div className='mt-3'/>
+        )}
       </div>
 
       {/* Interactive Sidebar Route List */}
@@ -258,7 +256,7 @@ const RoutingOptionsCard = ({
               ? (properties.distance_meters / 1000).toFixed(1) 
               : null;
 
-            // Determine label: "Recommended" for the best route, "Toll Route" if alternative has tolls, otherwise "Alternative Route"
+            // TODO: Determine label: "Recommended" for the best route, "Toll Route" if alternative has tolls, otherwise "Alternative Route"
             let routeLabel = 'Alternative Route';
             if (isBest) {
               routeLabel = 'Recommended';
@@ -304,6 +302,6 @@ const RoutingOptionsCard = ({
       )}
     </div>
   );
-}
+};
 
 export default RoutingOptionsCard;

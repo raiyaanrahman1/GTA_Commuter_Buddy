@@ -5,6 +5,9 @@ import { Combobox, TextInput, Loader, CloseButton, useCombobox } from '@mantine/
 import { useDebouncedValue } from '@mantine/hooks';
 import { SearchBoxCore, SessionToken } from '@mapbox/search-js-core';
 import type { SearchBoxSuggestion } from '@mapbox/search-js-core';
+import type mapboxgl from 'mapbox-gl';
+import { getDistanceInMeters } from './utils/routeUtils';
+import type { CachedLocation } from './types';
 
 interface MapSearchInputProps {
   accessToken: string;
@@ -13,27 +16,6 @@ interface MapSearchInputProps {
   placeholder: string;
   onResult: (coords: [number, number] | null) => void;
 }
-
-interface CachedLocation {
-  coords: [number, number];
-  accuracy: number; // 95% confidence radius in meters
-}
-
-// Flat-surface approximation helper to find local distance in meters
-const getDistanceInMeters = (coord1: [number, number], coord2: [number, number]): number => {
-  const [lng1, lat1] = coord1;
-  const [lng2, lat2] = coord2;
-  const earthRadius = 6371000;
-  
-  const latMidRad = ((lat1 + lat2) / 2) * (Math.PI / 180);
-  const dLatRad = (lat2 - lat1) * (Math.PI / 180);
-  const dLngRad = (lng2 - lng1) * (Math.PI / 180);
-  
-  const x = dLngRad * Math.cos(latMidRad);
-  const y = dLatRad;
-  
-  return Math.sqrt(x * x + y * y) * earthRadius;
-};
 
 export default function MapSearchInput({
   accessToken,

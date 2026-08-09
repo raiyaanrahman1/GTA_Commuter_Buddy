@@ -1,4 +1,4 @@
-import MapDisplay from "@/components/MapDisplay";
+import MapDisplay from "@/components/Map/MapDisplay";
 
 export default function Home() {
   return (
