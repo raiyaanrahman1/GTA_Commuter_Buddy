@@ -1,10 +1,13 @@
 'use client';
+
 import dynamic from 'next/dynamic';
 import dayjs from 'dayjs';
 import { Slider, NumberInput, Select } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { useEffect, useState, useRef } from 'react';
-import { formatDuration } from './MapDisplay';
+import { formatDuration } from './utils/routeUtils';
+import type { RouteState, RouteActions } from './types';
+import type mapboxgl from 'mapbox-gl';
 
 const MapSearchInput = dynamic(() => import('./MapSearchInput'), {
   ssr: false,
@@ -15,43 +18,37 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
 interface RoutingOptionsProps {
   mapInstance: mapboxgl.Map | undefined;
-  originInputProximity: [number, number],
-  destinationInputProximity: [number, number]
-  handleOriginResult: (coords: [number, number] | null) => void;
-  handleDestinationResult: (coords: [number, number] | null) => void;
-  departureDttm: string;
-  handleDepartureChange: (val: string, delay: number) => void;
-  depTimeOption: string;
-  setDepTimeOption: (val: string) => void;
-  budget: number;
-  maxTollCost: number;
-  handleBudgetChange: (val: number) => void;
-  clearFetchQueue: () => void;
-  routeMetadata: string | null;
-  routeData: GeoJSON.FeatureCollection | null;
-  selectedRouteIndex: number | null;
-  setSelectedRouteIndex: (val: number | null) => void;
+  routeState: RouteState;
+  routeActions: RouteActions;
 }
 
 const RoutingOptionsCard = ({
   mapInstance,
-  originInputProximity,
-  destinationInputProximity,
-  handleOriginResult,
-  handleDestinationResult,
-  departureDttm,
-  handleDepartureChange,
-  depTimeOption,
-  setDepTimeOption,
-  budget,
-  maxTollCost,
-  handleBudgetChange,
-  clearFetchQueue,
-  routeMetadata,
-  routeData,
-  selectedRouteIndex,
-  setSelectedRouteIndex
+  routeState,
+  routeActions
 }: RoutingOptionsProps) => {
+  const {
+    originInputProximity,
+    destinationInputProximity,
+    departureDttm,
+    depTimeOption,
+    budget,
+    maxTollCost,
+    routeMetadata,
+    routeData,
+    selectedRouteIndex
+  } = routeState;
+
+  const {
+    handleOriginResult,
+    handleDestinationResult,
+    handleDepartureChange,
+    setDepTimeOption,
+    handleBudgetChange,
+    clearFetchQueue,
+    setSelectedRouteIndex
+  } = routeActions;
+
   const [tempBudget, setTempBudget] = useState(budget);
   const isDraggingRef = useRef(false);
   const sliderKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown'];
@@ -72,10 +69,12 @@ const RoutingOptionsCard = ({
   ];
   for (let i = 0; i < 4; i++) {
     const val = safeMax * (i + 1) * 0.25;
-    if (val % stepSize === 0) marks.push({
-      value: val,
-      label: `$${val}`
-    })
+    if (val % stepSize === 0) {
+      marks.push({
+        value: val,
+        label: `$${val}`
+      });
+    }
   }
 
   return (
@@ -109,7 +108,7 @@ const RoutingOptionsCard = ({
         {
           depTimeOption === 'Depart At' && (
             <DateTimePicker
-              value={departureDttm}
+              value={departureDttm ? new Date(departureDttm) : null}
               valueFormat="MMMM DD, YYYY hh:mm A"
               onChange={newDate => {
                 if (newDate !== null) handleDepartureChange(newDate, 800);
@@ -125,27 +124,19 @@ const RoutingOptionsCard = ({
                 { value: dayjs().add(7, 'day').format('YYYY-MM-DD HH:mm:ss'), label: 'Next Week' },
                 { value: dayjs().add(1, 'month').format('YYYY-MM-DD HH:mm:ss'), label: 'Next month' },
               ]}
-              // className="w-full text-xs p-2 border rounded-md border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white text-gray-700"
             />
           )
         }
-
       </div>
-
 
       {/* Budget Controls */}
       <div className="flex flex-col gap-1 mt-1">
-
-        {/* Budget Controls Heading and Indicator */}
         <div className="flex justify-between items-center">
           <label className="text-xs font-semibold text-gray-500">Max Budget</label>
           <span className="text-xs font-bold text-blue-600">${tempBudget}</span>
         </div>
 
-        {/* Budget Inputs */}
         <div className="flex flex-row gap-5 items-center">
-
-          {/* Budget Slider */}
           <div className="grow">
             <Slider
               min={0}
@@ -157,14 +148,6 @@ const RoutingOptionsCard = ({
               color="blue"
               label={(val) => `$${val}`}
               marks={marks}
-
-              // Keyboard/Mouse interaction logic
-              /*
-                The slider uses this logic because after the knob has moved,
-                the user can keep it held down. If we used onChange it would send the request while
-                the mouse is still held down. This way, the request is only sent after the mouse has come up,
-                and the user has finalized their selection (debouncing also included)
-              */
               onMouseDown={() => {
                 clearFetchQueue();
                 isDraggingRef.current = true;
@@ -177,26 +160,10 @@ const RoutingOptionsCard = ({
                 if (sliderKeys.includes(e.key)) clearFetchQueue();
               }}
               onKeyUp={(e) => {
-                // Trigger only when they release the arrow key
                 if (sliderKeys.includes(e.key) && tempBudget !== budget) {
                   handleBudgetChange(tempBudget);
                 }
               }}
-              /* 
-                Changed from onMouseUp, onTouchEnd to onChangeEnd due to how event listeners work.
-                Previously, when this was an <input type="range"> element, those event listeners would trigger even
-                if the mouse was outside the element when it triggered. This is because the <input type="range">
-                is a special element that the browser grants Implicit Pointer Capture. When the element was changed
-                to a Mantine Slider component, this was no longer the case. So it was changed to a onChangeEnd event
-                (a Mantine-specific prop)
-
-                Contrary to the name "onChangeEnd", this gets trigerred when the user stops dragging the slider
-                (i.e. lifts the mouse) or when the value is changed with the keyboard - not when the knob position stops changing.
-                We want it to be able to be triggered even if the mouse is outside the component,
-                but it shouldn't be triggered while holding down one of the arrow keys - handleBudgetChange should only be triggered
-                when the key is lifted. Therefore, we use onChangeEnd with a ref checking if the slider
-                is being dragged (via the mouse or touch)
-              */ 
               onChangeEnd={(val) => {
                 if (isDraggingRef.current) {
                   isDraggingRef.current = false;
@@ -206,10 +173,8 @@ const RoutingOptionsCard = ({
                 }
               }}
             />
-
           </div>
 
-          {/* Budget text input */}
           <NumberInput
             min={0}
             max={safeMax}
@@ -233,12 +198,13 @@ const RoutingOptionsCard = ({
           />
         </div>
 
-        {/* Budget Errors */}
-        {routeMetadata === 'NonTollRoute' && (
+        {routeMetadata === 'NonTollRoute' ? (
           <p className="text-xs font-medium text-red-700 mt-5">
             This route does not use the 407 ETR, budget not available
           </p>
-        ) || (<div className='mt-3'/>)}
+        ) : (
+          <div className='mt-3'/>
+        )}
       </div>
 
       {/* Interactive Sidebar Route List */}
@@ -258,7 +224,6 @@ const RoutingOptionsCard = ({
               ? (properties.distance_meters / 1000).toFixed(1) 
               : null;
 
-            // Determine label: "Recommended" for the best route, "Toll Route" if alternative has tolls, otherwise "Alternative Route"
             let routeLabel = 'Alternative Route';
             if (isBest) {
               routeLabel = 'Recommended';
@@ -304,6 +269,6 @@ const RoutingOptionsCard = ({
       )}
     </div>
   );
-}
+};
 
 export default RoutingOptionsCard;

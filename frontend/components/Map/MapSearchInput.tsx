@@ -5,6 +5,9 @@ import { Combobox, TextInput, Loader, CloseButton, useCombobox } from '@mantine/
 import { useDebouncedValue } from '@mantine/hooks';
 import { SearchBoxCore, SessionToken } from '@mapbox/search-js-core';
 import type { SearchBoxSuggestion } from '@mapbox/search-js-core';
+import type mapboxgl from 'mapbox-gl';
+import { getDistanceInMeters } from './utils/routeUtils';
+import type { CachedLocation } from './types';
 
 interface MapSearchInputProps {
   accessToken: string;
@@ -13,27 +16,6 @@ interface MapSearchInputProps {
   placeholder: string;
   onResult: (coords: [number, number] | null) => void;
 }
-
-interface CachedLocation {
-  coords: [number, number];
-  accuracy: number; // 95% confidence radius in meters
-}
-
-// Flat-surface approximation helper to find local distance in meters
-const getDistanceInMeters = (coord1: [number, number], coord2: [number, number]): number => {
-  const [lng1, lat1] = coord1;
-  const [lng2, lat2] = coord2;
-  const earthRadius = 6371000;
-  
-  const latMidRad = ((lat1 + lat2) / 2) * (Math.PI / 180);
-  const dLatRad = (lat2 - lat1) * (Math.PI / 180);
-  const dLngRad = (lng2 - lng1) * (Math.PI / 180);
-  
-  const x = dLngRad * Math.cos(latMidRad);
-  const y = dLatRad;
-  
-  return Math.sqrt(x * x + y * y) * earthRadius;
-};
 
 export default function MapSearchInput({
   accessToken,
@@ -45,19 +27,14 @@ export default function MapSearchInput({
   const [suggestions, setSuggestions] = useState<SearchBoxSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // Debounce input value by 300ms to reduce Mapbox billable keypress requests
   const [debouncedQuery] = useDebouncedValue(value, 300);
 
-  // A stable flag to control whether suggest requests are allowed
   const shouldSuggestRef = useRef(true);
 
-  // Store both coordinates and certainty radius to calculate circle intersections
   const lastGeolocRef = useRef<CachedLocation | null>(null);
 
-  // Keep a session token in a stable Ref (fixes the stuck loading spinner)
   const sessionTokenRef = useRef<SessionToken | null>(null);
   
-  // Lazily initialize the session token on the client side
   if (sessionTokenRef.current === null) {
     sessionTokenRef.current = new SessionToken();
   }
@@ -66,10 +43,8 @@ export default function MapSearchInput({
     onDropdownClose: () => combobox.resetSelectedOption(),
   });
 
-  // Stably instantiate SearchBoxCore
   const searchBox = useMemo(() => new SearchBoxCore({ accessToken }), [accessToken]);
 
-  // Query Mapbox Search API when debounced query updates
   useEffect(() => {
     if (
       debouncedQuery.trim().length === 0 || 
@@ -105,17 +80,15 @@ export default function MapSearchInput({
     };
   }, [debouncedQuery, proximity, searchBox]);
 
-  // Reset and synchronize all state variables when input is cleared
   const handleClear = useCallback(() => {
     setValue('');
     setSuggestions([]);
     setLoading(false);
-    lastGeolocRef.current = null; // Clear stable geoloc ref on input clear
-    shouldSuggestRef.current = true; // Allow search suggestions again once cleared
-    onResult(null); // Notify parent to clear origin/destination coordinate markers
+    lastGeolocRef.current = null;
+    shouldSuggestRef.current = true;
+    onResult(null);
   }, [onResult]);
 
-  // Handle browser GPS geocoding lookup with intersecting uncertainty circles
   const handleUseCurrentLocation = useCallback(() => {
     if ('geolocation' in navigator) {
       setLoading(true);
@@ -125,36 +98,30 @@ export default function MapSearchInput({
         (position) => {
           const { longitude, latitude, accuracy } = position.coords;
           let coords: [number, number] = [longitude, latitude];
-          const currentAccuracy = accuracy ?? 15; // Default fallback to 15m if accuracy is null
+          const currentAccuracy = accuracy ?? 15;
 
           if (lastGeolocRef.current !== null) {
             const distanceMeters = getDistanceInMeters(coords, lastGeolocRef.current.coords);
             const sumOfRadii = lastGeolocRef.current.accuracy + currentAccuracy;
 
-            // Precision refinement check: If new reading is significantly more accurate (e.g., 25% or greater improvement),
-            // we adopt it anyway to resolve coarse cellular locks.
             const isSignificantlyMoreAccurate = currentAccuracy < lastGeolocRef.current.accuracy * 0.75;
 
             if (distanceMeters <= sumOfRadii && !isSignificantlyMoreAccurate) {
-              // Circles intersect and precision is comparable; keep the stable cached location
               coords = lastGeolocRef.current.coords;
               console.log('comparable locations and precision');
               console.log(distanceMeters);
               console.log(isSignificantlyMoreAccurate, lastGeolocRef.current.accuracy, currentAccuracy);
-
             } else {
-              // Circles do not intersect (actual movement) OR precision improved; update reference
               console.log('different locations or precision');
               console.log(distanceMeters);
               console.log(isSignificantlyMoreAccurate, lastGeolocRef.current.accuracy, currentAccuracy);
               lastGeolocRef.current = { coords, accuracy: currentAccuracy };
             }
           } else {
-            // First time getting location; save coordinates and confidence radius
             lastGeolocRef.current = { coords, accuracy: currentAccuracy };
           }
 
-          shouldSuggestRef.current = false; // Block suggest API for "Your Location" selection
+          shouldSuggestRef.current = false;
           setValue('Your Location');
           setSuggestions([]);
           onResult(coords);
@@ -165,15 +132,14 @@ export default function MapSearchInput({
           setLoading(false);
         },
         {
-          enableHighAccuracy: true, // Request fine GPS/Wi-Fi positioning
-          timeout: 6000,            // Wait up to 6 seconds for a lock
-          maximumAge: 0             // Force fresh hardware queries
+          enableHighAccuracy: true,
+          timeout: 6000,
+          maximumAge: 0
         }
       );
     }
   }, [onResult, combobox]);
 
-  // Handle option selection
   const handleSelect = useCallback(async (optionValue: string) => {
     if (optionValue === 'current_location') {
       handleUseCurrentLocation();
@@ -185,17 +151,15 @@ export default function MapSearchInput({
 
     const displayName = selectedSuggestion.name || selectedSuggestion.full_address || '';
     
-    shouldSuggestRef.current = false; // Block suggest API for selection
+    shouldSuggestRef.current = false;
     setValue(displayName);
     combobox.closeDropdown();
 
     try {
       setLoading(true);
       
-      // Pass the session token during coordinates lookup
       const res = await searchBox.retrieve(selectedSuggestion, { sessionToken: sessionTokenRef.current as SessionToken });
       
-      // Cycle and refresh the session token Ref to prepare for the next search flow
       sessionTokenRef.current = new SessionToken();
 
       if (res?.features?.length > 0) {
@@ -209,7 +173,6 @@ export default function MapSearchInput({
     }
   }, [suggestions, searchBox, onResult, combobox, handleUseCurrentLocation]);
 
-  // Prepend the "Use Current Location" option to your suggestions list
   const options = [
     <Combobox.Option value="current_location" key="current_location">
       <div className="flex items-center gap-2 text-xs py-1 text-blue-600 hover:text-blue-700">
@@ -258,10 +221,8 @@ export default function MapSearchInput({
             const newVal = event.currentTarget.value;
             setValue(newVal);
             
-            // Allow suggestions to load again as soon as user edits/types
             shouldSuggestRef.current = true;
             
-            // Instantly clear out states synchronously on empty string input (bypasses React 19 warning)
             if (newVal.trim().length === 0) {
               handleClear();
             } else {
@@ -291,7 +252,6 @@ export default function MapSearchInput({
               />
             </svg>
           }
-          // Dynamically adjust width to give standard padding when the clear button is active
           rightSectionWidth={value ? 58 : 35}
           rightSection={
             <div className="flex items-center justify-end gap-1.5 pr-2 w-full">
@@ -300,7 +260,7 @@ export default function MapSearchInput({
                 <CloseButton
                   size="sm"
                   onClick={(e) => {
-                    e.stopPropagation(); // Prevent the dropdown from opening on click
+                    e.stopPropagation();
                     handleClear();
                     combobox.closeDropdown();
                   }}
