@@ -11,13 +11,8 @@ import { useDepartureRefresh } from './useDepartureRefresh';
 import { useRouteLayerStyles } from './useRouteLayerStyles';
 import { useMapEventHandlers } from './useMapEventHandlers';
 import { getSafeLabelPositions } from '../utils/routeUtils';
+import { getCurrentDttm } from '../utils/routeUtils';
 import type { RouteState, RouteActions } from '../types';
-
-const getCurrentDttm = (): string => {
-  const now = new Date();
-  const offset = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 16);
-};
 
 export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
   // 1. Core Map States (Single Source of Truth)
@@ -37,6 +32,7 @@ export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
     loadingVisible,
     loadingKey,
     loadingMessage,
+    loadingExitDuration,
     setLoadingMessage,
     startLoading,
     stopLoading
@@ -123,6 +119,7 @@ export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
     loadingVisible,
     loadingKey,
     loadingMessage,
+    loadingExitDuration,
     originInputProximity,
     destinationInputProximity,
     mapInstance,

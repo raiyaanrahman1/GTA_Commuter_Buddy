@@ -10,7 +10,6 @@ import { RouteLabels } from './RouteLabels';
 import { LoadingOverlay, Loader, Text } from '@mantine/core';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
-const exitDuration = 1000;
 
 export default function MapDisplay() {
   const mapRef = useRef<MapRef>(null);
@@ -42,7 +41,7 @@ export default function MapDisplay() {
           visible={routeState.loadingVisible}
           overlayProps={{ blur: 2 }}
           zIndex={0}
-          transitionProps={{ transition: 'fade', duration: 200, exitDuration: exitDuration }}
+          transitionProps={{ transition: 'fade', duration: 200, exitDuration: routeState.loadingExitDuration }}
           loaderProps={{
             children: (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>

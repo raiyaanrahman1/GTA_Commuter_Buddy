@@ -192,3 +192,10 @@ export const getDistanceInMeters = (coord1: [number, number], coord2: [number, n
   
   return Math.sqrt(x * x + y * y) * earthRadius;
 };
+
+export const getCurrentDttm = (): string => {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+  // Formats into local YYYY-MM-DDTHH:MM format required by input[type="datetime-local"]
+  return new Date(now.getTime() - offset).toISOString().slice(0, 16);
+};

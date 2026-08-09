@@ -5,20 +5,20 @@ export const useMapLoading = () => {
   const [loadingKey, setLoadingKey] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
-  const exitTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const exitDuration = 1000;
+  const loadingExitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingExitDuration = 1000;
 
   const restartLoading = useCallback(() => {
     setLoadingVisible(false);
 
-    if (exitTimerRef.current) {
-      clearTimeout(exitTimerRef.current);
+    if (loadingExitTimerRef.current) {
+      clearTimeout(loadingExitTimerRef.current);
     }
 
-    exitTimerRef.current = setTimeout(() => {
+    loadingExitTimerRef.current = setTimeout(() => {
       setLoadingKey((prev) => prev + 1);
       setLoadingVisible(true);
-    }, exitDuration / 4);
+    }, loadingExitDuration / 4);
   }, []);
 
   const startLoading = useCallback(() => {
@@ -36,8 +36,8 @@ export const useMapLoading = () => {
 
   useEffect(() => {
     return () => {
-      if (exitTimerRef.current) {
-        clearTimeout(exitTimerRef.current);
+      if (loadingExitTimerRef.current) {
+        clearTimeout(loadingExitTimerRef.current);
       }
     };
   }, []);
@@ -46,6 +46,7 @@ export const useMapLoading = () => {
     loadingVisible,
     loadingKey,
     loadingMessage,
+    loadingExitDuration,
     setLoadingMessage,
     startLoading,
     stopLoading

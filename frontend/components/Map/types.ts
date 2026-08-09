@@ -27,6 +27,7 @@ export interface RouteState {
   loadingVisible: boolean;
   loadingKey: number;
   loadingMessage: string | null;
+  loadingExitDuration: number;
   originInputProximity: [number, number];
   destinationInputProximity: [number, number];
   

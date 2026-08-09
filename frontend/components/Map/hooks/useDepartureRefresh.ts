@@ -1,13 +1,8 @@
 import { useEffect, useEffectEvent } from 'react';
 import { useIdle } from '@mantine/hooks';
+import { getCurrentDttm } from '../utils/routeUtils';
 
 const LeaveNowRefreshInterval = 5 * 1000 * 60; // 5 minutes
-
-const getCurrentDttm = (): string => {
-  const now = new Date();
-  const offset = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - offset).toISOString().slice(0, 16);
-};
 
 export const useDepartureRefresh = (
   depTimeOption: string,

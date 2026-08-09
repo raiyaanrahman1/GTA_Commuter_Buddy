@@ -29,10 +29,11 @@ export const RouteLabels: React.FC<RouteLabelsProps> = ({
 
         // Identify how many coordinates of this specific route line have drawn
         const animatedFeature = animatedRouteData.features[pos.featureIndex];
-        const hasPassedMarker =
+        const hasPassedMarker = (
           animatedFeature &&
           animatedFeature.geometry.type === 'LineString' &&
-          animatedFeature.geometry.coordinates.length >= pos.targetIndex;
+          animatedFeature.geometry.coordinates.length >= pos.targetIndex
+        );
 
         // Only render when the route line reaches the marker location
         if (!hasPassedMarker) return null;
