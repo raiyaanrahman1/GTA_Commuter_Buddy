@@ -3,8 +3,6 @@ import type { FeatureCollection, Geometry } from 'geojson';
 import { isSameRoute } from '../utils/routeUtils';
 
 interface FetchDeps {
-  origin: [number, number] | null;
-  destination: [number, number] | null;
   setRouteData: (data: FeatureCollection<Geometry> | null) => void;
   setRouteMetadata: (meta: string | null) => void;
   setMaxTollCost: (cost: number) => void;
@@ -15,8 +13,6 @@ interface FetchDeps {
 }
 
 export const useRouteFetch = ({
-  origin,
-  destination,
   setRouteData,
   setRouteMetadata,
   setMaxTollCost,

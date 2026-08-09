@@ -32,7 +32,7 @@ export interface RouteState {
   
   mapInstance: mapboxgl.Map | undefined;
   animatedRouteData: FeatureCollection<Geometry> | null;
-  routeLayer: LayerProps;
+  routeLayerStyles: LayerProps;
   labelPositions: LabelPosition[];
 }
 

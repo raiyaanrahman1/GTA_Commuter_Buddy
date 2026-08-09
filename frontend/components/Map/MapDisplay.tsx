@@ -60,7 +60,7 @@ export default function MapDisplay() {
         {/* Render the animated route lines */}
         {routeState.animatedRouteData && (
           <Source id="my-route" type="geojson" data={routeState.animatedRouteData}>
-            <Layer {...routeState.routeLayer} />
+            <Layer {...routeState.routeLayerStyles} />
           </Source>
         )}
 

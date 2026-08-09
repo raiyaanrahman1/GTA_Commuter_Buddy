@@ -3,7 +3,7 @@ import { Marker } from 'react-map-gl/mapbox';
 import type { FeatureCollection, Geometry } from 'geojson';
 import type { LabelPosition } from './types';
 import { formatDuration } from './utils/routeUtils';
-import styles from '../Map.module.css';
+import styles from './Map.module.css';
 
 interface RouteLabelsProps {
   routeData: FeatureCollection<Geometry> | null;

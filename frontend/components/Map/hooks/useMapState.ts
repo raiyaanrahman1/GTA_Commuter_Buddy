@@ -5,7 +5,7 @@ import type mapboxgl from 'mapbox-gl';
 import { useMapLoading } from './useMapLoading';
 import { useMapView } from './useMapView';
 import { useRouteFetch } from './useRouteFetch';
-import { useRouteOptions } from './useRouteOptions';
+import { useRouteOptionHandlers } from './useRouteOptionHandlers';
 import { useRouteAnimation } from './useRouteAnimation';
 import { useDepartureRefresh } from './useDepartureRefresh';
 import { useRouteLayerStyles } from './useRouteLayerStyles';
@@ -57,8 +57,6 @@ export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
     queueFetchDirections,
     clearFetchQueue
   } = useRouteFetch({
-    origin,
-    destination,
     setRouteData,
     setRouteMetadata,
     setMaxTollCost,
@@ -74,18 +72,15 @@ export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
     handleDestinationResult,
     handleDepartureChange,
     handleBudgetChange
-  } = useRouteOptions({
+  } = useRouteOptionHandlers({
     origin,
     setOrigin,
     destination,
     setDestination,
     budget,
     setBudget,
-    depTimeOption,
-    setDepTimeOption,
     departureDttm,
     setDepartureDttm,
-    selectedRouteIndex,
     setSelectedRouteIndex,
     routeData,
     fitMapBounds,
@@ -100,7 +95,7 @@ export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
   const animatedRouteData = useRouteAnimation(routeData);
 
   // 8. Delegate route selection line styling definitions
-  const routeLayer = useRouteLayerStyles(selectedRouteIndex);
+  const routeLayerStyles = useRouteLayerStyles(selectedRouteIndex);
 
   // 9. Delegate Map Event Handlers
   const { onMapLoad, onMapClick } = useMapEventHandlers({
@@ -132,7 +127,7 @@ export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
     destinationInputProximity,
     mapInstance,
     animatedRouteData,
-    routeLayer,
+    routeLayerStyles,
     labelPositions
   };
 

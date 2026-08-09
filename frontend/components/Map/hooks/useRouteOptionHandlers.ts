@@ -8,11 +8,8 @@ interface OptionsDeps {
   setDestination: (coords: [number, number] | null) => void;
   budget: number;
   setBudget: (val: number) => void;
-  depTimeOption: string;
-  setDepTimeOption: (option: string) => void;
   departureDttm: string;
   setDepartureDttm: (dttm: string) => void;
-  selectedRouteIndex: number | null;
   setSelectedRouteIndex: (idx: number | null) => void;
   routeData: FeatureCollection<Geometry> | null;
   fitMapBounds: (start: [number, number], end: [number, number]) => void;
@@ -27,18 +24,15 @@ interface OptionsDeps {
   ) => void;
 }
 
-export const useRouteOptions = ({
+export const useRouteOptionHandlers = ({
   origin,
   setOrigin,
   destination,
   setDestination,
   budget,
   setBudget,
-  depTimeOption,
-  setDepTimeOption,
   departureDttm,
   setDepartureDttm,
-  selectedRouteIndex,
   setSelectedRouteIndex,
   routeData,
   fitMapBounds,
