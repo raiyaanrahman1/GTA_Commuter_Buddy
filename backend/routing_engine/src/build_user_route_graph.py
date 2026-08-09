@@ -81,16 +81,16 @@ class RouteGraphBuilder:
         params['avoid[features]'] = 'tollRoad'
         r = requests.get(url, params=params)
         r.raise_for_status()
-        routes = r.json()['routes']
+        non_toll_routes = r.json()['routes']
 
-        logger.info(f'Found {len(routes)} routes')
+        logger.info(f'Found {len(non_toll_routes)} routes')
         route_graphs: List[nx.MultiDiGraph] = []
         polylines: List[List[Tuple]] = []
         p2b_mappings: list[dict[int, int]] = []
         toll_node_mapping: dict[int, list[int]] = {}
 
-        for i, route in enumerate(toll_routes):
-            polyline_str = route['sections'][0]['polyline']
+        for i, toll_route in enumerate(toll_routes):
+            polyline_str = toll_route['sections'][0]['polyline']
             decoded = fpl.decode(polyline_str)  # returns list of (lat, lon[, z])
             latlon = [(lat, lon) for lat, lon, *_ in decoded]
             polylines.append(latlon)
@@ -106,8 +106,11 @@ class RouteGraphBuilder:
                     pass
             else:
                 potential_routes: list[PolylineType] = [latlon]
-                potential_routes += [fpl.decode(route['sections'][0]['polyline']) for route in routes] # type: ignore
-                raise NonTollRouteError(origin, destination, latlon, potential_routes)
+                durations: list[int] = [toll_route['sections'][0]['summary']['duration']]
+                potential_routes += [fpl.decode(route['sections'][0]['polyline']) for route in non_toll_routes] # type: ignore
+                durations += [route['sections'][0]['summary']['duration'] for route in non_toll_routes]
+
+                raise NonTollRouteError(origin, destination, 0, potential_routes, durations)
             
             self.toll_graph = tg
 
@@ -131,8 +134,8 @@ class RouteGraphBuilder:
 
             route_graphs.append(route_graph)
 
-        for i, route in enumerate(routes):
-            polyline_str = route['sections'][0]['polyline']
+        for i, non_toll_route in enumerate(non_toll_routes):
+            polyline_str = non_toll_route['sections'][0]['polyline']
             decoded = fpl.decode(polyline_str)  # returns list of (lat, lon[, z])
             latlon = [(lat, lon) for lat, lon, *_ in decoded]
             polylines.append(latlon)

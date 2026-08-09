@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import '@mantine/core/styles.css';
+import '@mantine/dates/styles.css';
+import { MantineProvider } from '@mantine/core';
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,7 +30,11 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="w-screen h-screen flex flex-col p-2">{children}</body>
+      <body className="w-screen h-screen flex flex-col">
+        <MantineProvider>
+          {children}
+        </MantineProvider>
+      </body>
     </html>
   );
 }
