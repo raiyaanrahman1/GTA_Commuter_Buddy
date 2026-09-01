@@ -4,21 +4,32 @@ import folium
 from folium import plugins
 import networkx as nx
 import time
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+CARTO_API_KEY = os.getenv('CARTO_API_KEY')
+
+tiles_url = f"https://basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}.png?key={CARTO_API_KEY}"
+attribution = '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors &copy; <a href="https://carto.com">CARTO</a>'
 
 def setup_folium_graph(G: nx.MultiDiGraph):
     center_lat = sum(node['y'] for node in G.nodes.values()) / len(G)
     center_lon = sum(node['x'] for node in G.nodes.values()) / len(G)
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=11, tiles="cartodbpositron")
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=11,
+        tiles=tiles_url,
+        attr=attribution
+    )
     return m
 
-def visualize_graph(G: nx.MultiDiGraph, map: folium.Map, node_colour, show_edges = False, show_direction = False):
+def visualize_graph(G: nx.MultiDiGraph, map: folium.Map, node_colour, show_edges = False, show_direction = False, radius=2.0):
     # Plot nodes
     for node, data in G.nodes(data=True):
         # tag = data.get('tag', None)
         tag = node
         folium.CircleMarker(
             location=(data['y'], data['x']),
-            radius=2,
+            radius=radius,
             color=node_colour,
             fill=True,
             fill_opacity=0.8,
