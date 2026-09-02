@@ -35,6 +35,7 @@ export interface RouteState {
   animatedRouteData: FeatureCollection<Geometry> | null;
   routeLayerStyles: LayerProps;
   labelPositions: LabelPosition[];
+  fetchError: string | null;
 }
 
 export interface RouteActions {

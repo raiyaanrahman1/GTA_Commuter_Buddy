@@ -36,7 +36,8 @@ const RoutingOptionsCard = ({
     maxTollCost,
     routeMetadata,
     routeData,
-    selectedRouteIndex
+    selectedRouteIndex,
+    fetchError
   } = routeState;
 
   const {
@@ -229,13 +230,17 @@ const RoutingOptionsCard = ({
           />
         </div>
 
-        {/* Budget Errors */}
-        {routeMetadata === 'NonTollRoute' ? (
+        {/* Budget & Fetch Errors */}
+        {fetchError ? (
+          <p className="text-xs font-medium text-red-700 mt-5">
+            {fetchError}
+          </p>
+        ) : routeMetadata === 'NonTollRoute' ? (
           <p className="text-xs font-medium text-red-700 mt-5">
             This route does not use the 407 ETR, budget not available
           </p>
         ) : (
-          <div className='mt-3'/>
+          <div className="mt-3" />
         )}
       </div>
 

@@ -10,6 +10,7 @@ interface FetchDeps {
   startLoading: () => void;
   stopLoading: () => void;
   setLoadingMessage: (msg: string | null) => void;
+  setFetchError: (error: string | null) => void;
 }
 
 export const useRouteFetch = ({
@@ -19,7 +20,8 @@ export const useRouteFetch = ({
   setBudget,
   startLoading,
   stopLoading,
-  setLoadingMessage
+  setLoadingMessage,
+  setFetchError
 }: FetchDeps) => {
   const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRequests = useRef(0);
@@ -37,6 +39,7 @@ export const useRouteFetch = ({
     budVal: number
   ) => {
     try {
+      setFetchError(null); // Reset error state prior to fetching
       console.log('Fetching directions from custom backend...');
       const responseBody = JSON.stringify({
         origin: [start[1], start[0]],
@@ -53,6 +56,25 @@ export const useRouteFetch = ({
         body: responseBody
       });
       
+      // Handle non-200 responses
+      if (!response.ok) {
+        console.log(response.statusText);
+        let errorMessage = `Failed to fetch route (Status: ${response.status})`;
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData && errorData.error) {
+            errorMessage = errorData.error;
+          } else if (errorData && errorData.detail) {
+            errorMessage = errorData.detail;
+          }
+        } catch {
+          // Response body was not JSON
+        }
+        throw new Error(errorMessage);
+      }
+
       interface ResponseType {
         data: FeatureCollection<Geometry>;
         metadata: string;
@@ -119,8 +141,12 @@ export const useRouteFetch = ({
       clearFetchQueue();
     } catch (error) {
       console.error('Backend fetch error:', error);
+      const message = error instanceof Error ? error.message : 'An unexpected network error occurred.';
+      setFetchError(message);
+      setRouteData(null); // Clear stale map route visuals on error
+      setRouteMetadata(null);
     }
-  }, [clearFetchQueue, setBudget, setRouteData, setRouteMetadata, setMaxTollCost]);
+  }, [clearFetchQueue, setBudget, setRouteData, setRouteMetadata, setMaxTollCost, setFetchError]);
 
   const queueFetchDirections = useCallback((
     start: [number, number],
@@ -131,6 +157,7 @@ export const useRouteFetch = ({
     message: string | null = null
   ) => {
     clearFetchQueue();
+    setFetchError(null);
     setLoadingMessage(message);
     startLoading();
 
@@ -142,7 +169,7 @@ export const useRouteFetch = ({
         stopLoading();
       }
     }, delay);
-  }, [fetchDirections, startLoading, stopLoading, clearFetchQueue, setLoadingMessage]);
+  }, [fetchDirections, startLoading, stopLoading, clearFetchQueue, setLoadingMessage, setFetchError]);
 
   useEffect(() => {
     return () => {

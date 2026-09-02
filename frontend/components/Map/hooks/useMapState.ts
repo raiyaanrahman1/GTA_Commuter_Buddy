@@ -26,6 +26,7 @@ export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
   const [depTimeOption, setDepTimeOption] = useState('Leave Now');
   const [departureDttm, setDepartureDttm] = useState<string>(() => getCurrentDttm());
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // 2. Delegate Loading Overlay State
   const {
@@ -59,7 +60,8 @@ export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
     setBudget,
     startLoading,
     stopLoading,
-    setLoadingMessage
+    setLoadingMessage,
+    setFetchError
   });
 
   // 5. Delegate Options Form handlers
@@ -125,7 +127,8 @@ export const useMapState = (mapRef: React.RefObject<MapRef | null>) => {
     mapInstance,
     animatedRouteData,
     routeLayerStyles,
-    labelPositions
+    labelPositions,
+    fetchError
   };
 
   const routeActions: RouteActions = {
