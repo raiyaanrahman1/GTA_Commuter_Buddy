@@ -3,10 +3,10 @@
 import type { RouteState, RouteActions } from './types';
 import type mapboxgl from 'mapbox-gl';
 
-import { RouteSearchFields } from './routing/RouteSearchFields';
-import { DepartureTimeSelector } from './routing/DepartureTimeSelector';
-import { BudgetControls } from './routing/BudgetControls';
-import { RouteSelectorList } from './routing/RouteSelectorList';
+import { RouteSearchFields } from './routingOptions/RouteSearchFields';
+import { DepartureTimeSelector } from './routingOptions/DepartureTimeSelector';
+import { BudgetControls } from './routingOptions/BudgetControls';
+import { RouteSelectorList } from './routingOptions/RouteSelectorList';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
 
