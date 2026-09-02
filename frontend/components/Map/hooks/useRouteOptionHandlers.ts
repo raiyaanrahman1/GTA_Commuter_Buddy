@@ -24,6 +24,8 @@ interface OptionsDeps {
   ) => void;
 }
 
+export type handleDepartureChangeType = (newDttm: string, delay: number, message?: string | null | undefined) => void;
+
 export const useRouteOptionHandlers = ({
   origin,
   setOrigin,
@@ -69,7 +71,7 @@ export const useRouteOptionHandlers = ({
     }
   }, [origin, departureDttm, budget, fitMapBounds, flyToCoords, queueFetchDirections, setDestination]);
 
-  const handleDepartureChange = useCallback((newDttm: string, delay: number, message: string | null = null) => {
+  const handleDepartureChange: handleDepartureChangeType = useCallback((newDttm, delay, message = null) => {
     setDepartureDttm(newDttm);
     if (origin && destination) {
       queueFetchDirections(origin, destination, newDttm, budget, delay, message);
