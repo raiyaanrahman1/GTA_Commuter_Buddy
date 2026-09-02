@@ -30,7 +30,8 @@ const RoutingOptionsCard = ({
     maxTollCost,
     routeMetadata,
     routeData,
-    selectedRouteIndex
+    selectedRouteIndex,
+    fetchError
   } = routeState;
 
   const {

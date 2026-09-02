@@ -1,4 +1,5 @@
 import folium
+import seaborn as sns
 
 from routing_engine.src.build_user_route_graph import RouteGraphBuilder
 from routing_engine.src.errors.errors import NonTollRouteError
@@ -48,7 +49,7 @@ def test_get_route_graph():
     m = setup_folium_graph(builder.toll_graph)
     # m = visualize_graph(builder.toll_graph, m, 'red')
     # m = visualize_graph(builder.major_ints_graph, m, 'orange')
-    colours = ['green', 'blue', 'purple']
+    colours = sns.color_palette("hls", 3).as_hex()
     for i, graph in enumerate(route_graphs):
         m = visualize_graph(graph, m, colours[i], True, False)
     

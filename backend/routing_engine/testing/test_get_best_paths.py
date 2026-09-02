@@ -7,7 +7,7 @@ from test_get_connecting_routes import test_connecting_routes
 from routing_engine.src.get_best_paths import get_best_paths
 from routing_engine.src.types.types import PolylineType
 from routing_engine.src.data_structures.connected_route_graph import ConnectedRouteGraph
-from routing_engine.src.utils.visualize_graph import setup_folium_graph
+from routing_engine.src.utils.visualize_graph import setup_folium_graph, visualize_graph
 from routing_engine.src.utils.get_directories import TEST_OUTPUTS_FOLDER
 from routing_engine.src.utils.setup_logger import get_logger
 from routing_engine.src.helpers.get_best_path_polylines import get_best_path_polylines
@@ -33,6 +33,8 @@ def visualize_path(
     m = create_base_map(connected_graph, route_polylines)
     for section_polyline in path_plines:
         folium.PolyLine(section_polyline, color='black', weight=2, opacity=0.8).add_to(m)
+
+    m = visualize_graph(connected_graph.graph, m, 'black')
     m.save(TEST_OUTPUTS_FOLDER / file_name)
     
 def visualize_paths(

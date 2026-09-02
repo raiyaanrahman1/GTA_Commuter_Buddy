@@ -2,19 +2,23 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routing_engine.src.build_user_route_graph import RouteGraphBuilder
-from typing import AsyncIterator, TypedDict
+from typing import AsyncGenerator, TypedDict
 import uvicorn
+from slowapi.errors import RateLimitExceeded
+import redis
+import sys
 
 from routes.routes import router
 from misc.sliding_ttl_cache import SlidingTTLCache
 from misc.types import RouteState
+from misc.limiter import limiter, custom_rate_limit_handler
 
 class StateDict(TypedDict):
     route_builder: RouteGraphBuilder
     route_cache: SlidingTTLCache
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[StateDict]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[StateDict]:
     # Startup
     print("Loading route graph into memory...")
     route_graph_builder = RouteGraphBuilder()
@@ -32,11 +36,37 @@ async def lifespan(app: FastAPI) -> AsyncIterator[StateDict]:
     print("Shutting down and cleaning up resources...")
     route_cache.clear()
 
+def verify_redis_connection(uri: str) -> None:
+    """Verifies Redis is running synchronously before creating the FastAPI instance."""
+    print("===== Pre-Flight Infrastructure Checks =====")
+    print("Checking Redis server status...")
+    
+    # Use standard redis client with a strict 2-second timeout
+    client = redis.from_url(uri, socket_timeout=2.0)
+    try:
+        client.ping()
+        print("✔ Redis connection verified successfully!")
+        print("============================================\n")
+    except Exception as e:
+        print("\n❌ ERROR: Could not connect to the Redis server.")
+        print("Please verify that your Redis server is running locally.")
+        print("Run 'src/redis-server' or 'redis-server' in your terminal, then try again.")
+        print(f"Details: {e}\n")
+        # Exit safely before any ASGI server code begins execution
+        sys.exit(1)
+
 def create_app() -> FastAPI:
+    verify_redis_connection("redis://localhost:6379/0")
     app = FastAPI(
         title="GTA Commuter Buddy API",
         version="1.0.0",
         lifespan=lifespan
+    )
+
+    app.state.limiter = limiter
+    app.add_exception_handler(
+        RateLimitExceeded,
+        custom_rate_limit_handler # type: ignore
     )
 
     # Register API routes

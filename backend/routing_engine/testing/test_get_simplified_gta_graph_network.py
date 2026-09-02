@@ -27,4 +27,9 @@ def test_get_simplified_gta_graph_network():
 
     m = setup_folium_graph(major_int_graph_simplified)
     m = visualize_graph(major_int_graph_simplified, m, 'green', True)
-    m.save(TEST_OUTPUTS_FOLDER / 'major_intersections_simplified.html') 
+    m.save(TEST_OUTPUTS_FOLDER / 'major_intersections_simplified.html')
+
+    m = setup_folium_graph(major_int_graph_simplified)
+    m = visualize_graph(major_int_graph_simplified, m, 'orange', False, False, 0.5)
+    m = visualize_graph(toll_graph, m, 'blue', True, True)
+    m.save(TEST_OUTPUTS_FOLDER / 'simlified_gta_graph.html')
