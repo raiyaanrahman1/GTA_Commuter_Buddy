@@ -36,6 +36,9 @@ def build_feature_collection(best_path: RouteData, potential_routes: list[RouteD
 
     return FeatureCollection(features=features)
 
+def get_route_cache_key(request: RouteRequest) -> str:
+    return f"{request.origin}:{request.destination}:{request.departure_dttm}"
+
 def compute_route(
         request: RouteRequest,
         builder: RouteGraphBuilder,
@@ -52,7 +55,7 @@ def compute_route(
         request.departure_dttm,
         request.budget
     )
-    cache_key = f"{origin}:{destination}:{departure_dttm}"
+    cache_key = get_route_cache_key(request)
     route_state: None | RouteState = None
 
     try:

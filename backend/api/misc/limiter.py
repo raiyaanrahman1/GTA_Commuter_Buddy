@@ -3,6 +3,17 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from typing import Optional
+from contextvars import ContextVar
+
+request_ctx: ContextVar[Optional[Request]] = ContextVar("request_ctx", default=None)
+
+def is_route_cached(request: Optional[Request] = None) -> bool:
+    """Returns True if the route state was already present in the cache."""
+    req = request or request_ctx.get()
+    if req is None:
+        return False
+    return getattr(req.state, "is_route_cached", False)
 
 def global_endpoint_counter(request: Request) -> str:
     return "global_monthly_endpoint_quota"
