@@ -6,6 +6,7 @@ from test_get_toll_cost import test_get_toll_cost
 from test_get_best_paths import test_get_best_paths
 from test_get_user_routes_and_best_path import test_get_user_routes_and_best_path
 import argparse
+import asyncio
 
 MIN_STEP = 1
 MAX_STEP = 3
@@ -40,7 +41,7 @@ if mode == TEST_MODE:
         case 5:
             test_get_best_paths()
         case 6:
-            test_get_user_routes_and_best_path()
+            asyncio.run(test_get_user_routes_and_best_path())
         case -1:
             playground_test()
         case _:

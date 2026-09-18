@@ -193,18 +193,18 @@ async def get_traffic_aware_connecting_routes_helper(
         return results
     assert False
 
-def get_traffic_aware_connecting_routes(
+async def get_traffic_aware_connecting_routes(
         connecting_routes: ConnectingRoutesType,
         route_graphs: List[nx.MultiDiGraph],
         polylines: list[PolylineType],
         departure_time_str: str
     ):
-    results = asyncio.run(get_traffic_aware_connecting_routes_helper(connecting_routes, route_graphs, departure_time_str))
+    results = await get_traffic_aware_connecting_routes_helper(connecting_routes, route_graphs, departure_time_str)
     polylines += [res['polyline'] for res in results]
     return results
 
 
-def get_traffic_aware_durations(
+async def get_traffic_aware_durations(
         route_graphs: List[nx.MultiDiGraph],
         connections: ConnectingRoutesType,
         origin: tuple[float, float],
@@ -230,7 +230,7 @@ def get_traffic_aware_durations(
         section_data = get_traffic_aware_route(origin_str, destination_str, waypoints, i, polylines, departure_time_str)
         intra_route_section_data += section_data
 
-    inter_route_section_data = get_traffic_aware_connecting_routes(connections, route_graphs, polylines, departure_time_str)
+    inter_route_section_data = await get_traffic_aware_connecting_routes(connections, route_graphs, polylines, departure_time_str)
 
     return polylines, intra_route_section_data, inter_route_section_data
     

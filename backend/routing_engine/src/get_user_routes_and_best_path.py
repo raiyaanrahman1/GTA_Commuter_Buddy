@@ -16,7 +16,7 @@ from routing_engine.src.utils.setup_logger import get_logger
 
 logger = get_logger()
 
-def build_route_graph(
+async def build_route_graph(
     origin: tuple[float, float],
     destination: tuple[float, float],
     departure_dttm: datetime,
@@ -43,7 +43,7 @@ def build_route_graph(
     connecting_routes = get_connecting_routes(simp_route_graph)
     (
         traffic_aware_polylines, intra_route_section_data, inter_route_section_data
-    ) = get_traffic_aware_durations(
+    ) = await get_traffic_aware_durations(
         route_graphs,
         connecting_routes,
         origin,
@@ -75,7 +75,7 @@ def compute_best_path(
     return best_path_plines, time_and_money_costs
 
 
-def get_user_routes_and_best_path(
+async def get_user_routes_and_best_path(
     origin: tuple[float, float],
     destination: tuple[float, float],
     departure_dttm: datetime,
@@ -88,7 +88,7 @@ def get_user_routes_and_best_path(
         inter_route_section_data,
         traffic_aware_polylines,
         total_cost
-    ) = build_route_graph(
+    ) = await build_route_graph(
         origin,
         destination,
         departure_dttm,

@@ -1,76 +1,89 @@
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator, TypedDict
+
+import redis.asyncio as redis
+import uvicorn
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routing_engine.src.build_user_route_graph import RouteGraphBuilder
-from typing import AsyncGenerator, TypedDict
-import uvicorn
-from slowapi.errors import RateLimitExceeded
-import redis
-import sys
 
-from routes.routes import router
+from misc.limiter import (
+    REDIS_URL,
+    RouteRateLimiters,
+    create_route_rate_limiters,
+)
 from misc.sliding_ttl_cache import SlidingTTLCache
 from misc.types import RouteState
-from misc.limiter import limiter, custom_rate_limit_handler
+from routing_engine.src.build_user_route_graph import RouteGraphBuilder
+from routes.routes import router
+
 
 class StateDict(TypedDict):
     route_builder: RouteGraphBuilder
     route_cache: SlidingTTLCache
+    rate_limiters: RouteRateLimiters
+
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[StateDict]:
-    # Startup
+async def lifespan(
+    app: FastAPI,
+) -> AsyncGenerator[StateDict]:
     print("Loading route graph into memory...")
-    route_graph_builder = RouteGraphBuilder()
-    TTL = 300  # 5 minutes
-    route_cache: SlidingTTLCache[str, RouteState] = SlidingTTLCache(maxsize=100, ttl=TTL)
-    
-    # Note: passing in state variables directly into yield makes them only accessible in requests
-    # They become merged into every request, but they are part of the request state, not the app state
-    yield {
-        'route_builder': route_graph_builder,
-        'route_cache': route_cache,
-    }
-    
-    # Shutdown
-    print("Shutting down and cleaning up resources...")
-    route_cache.clear()
 
-def verify_redis_connection(uri: str) -> None:
-    """Verifies Redis is running synchronously before creating the FastAPI instance."""
-    print("===== Pre-Flight Infrastructure Checks =====")
-    print("Checking Redis server status...")
-    
-    # Use standard redis client with a strict 2-second timeout
-    client = redis.from_url(uri, socket_timeout=2.0)
+    route_graph_builder = RouteGraphBuilder()
+
+    route_cache: SlidingTTLCache[str, RouteState] = SlidingTTLCache(
+        maxsize=100,
+        ttl=300,
+    )
+
+    redis_client = redis.from_url(
+        REDIS_URL,
+        encoding="utf-8",
+        decode_responses=True,
+    )
+
     try:
-        client.ping()
-        print("✔ Redis connection verified successfully!")
-        print("============================================\n")
-    except Exception as e:
-        print("\n❌ ERROR: Could not connect to the Redis server.")
-        print("Please verify that your Redis server is running locally.")
-        print("Run 'src/redis-server' or 'redis-server' in your terminal, then try again.")
-        print(f"Details: {e}\n")
-        # Exit safely before any ASGI server code begins execution
-        sys.exit(1)
+        await redis_client.ping()
+    except Exception as exc:
+        await redis_client.aclose()
+
+        raise RuntimeError(
+            "Could not connect to Redis. "
+            "Please verify that Redis is running."
+        ) from exc
+
+    print("Redis connection verified successfully!")
+
+    rate_limiters = create_route_rate_limiters(
+        redis_client,
+    )
+
+    yield {
+        "route_builder": route_graph_builder,
+        "route_cache": route_cache,
+        "rate_limiters": rate_limiters,
+    }
+
+    print("Shutting down and cleaning up resources...")
+
+    route_cache.clear()
+    rate_limiters.close()
+
+    await redis_client.aclose()
+
 
 def create_app() -> FastAPI:
-    verify_redis_connection("redis://localhost:6379/0")
     app = FastAPI(
         title="GTA Commuter Buddy API",
         version="1.0.0",
-        lifespan=lifespan
+        lifespan=lifespan,
     )
 
-    app.state.limiter = limiter
-    app.add_exception_handler(
-        RateLimitExceeded,
-        custom_rate_limit_handler # type: ignore
+    app.include_router(
+        router,
+        prefix="/api",
     )
-
-    # Register API routes
-    app.include_router(router, prefix="/api")
 
     app.add_middleware(
         CORSMiddleware,
@@ -82,13 +95,15 @@ def create_app() -> FastAPI:
 
     return app
 
+
 app = create_app()
+
 
 if __name__ == "__main__":
     uvicorn.run(
-        "main:app", 
-        host="127.0.0.1", 
-        port=8000, 
+        "main:app",
+        host="127.0.0.1",
+        port=8000,
         reload=True,
-        reload_dirs=[".", "../routing_engine/src"] # Watch both directories
+        reload_dirs=[".", "../routing_engine/src"],
     )
