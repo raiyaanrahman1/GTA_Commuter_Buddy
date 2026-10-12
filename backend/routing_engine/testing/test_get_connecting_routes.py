@@ -8,10 +8,12 @@ from routing_engine.src.build_user_traffic_routes import (
     assign_durations_to_graph,
     get_connecting_routes,
     assign_toll_costs_to_graph,
-    simplify_toll_graph_for_connecting_routes
+    simplify_toll_graph_for_connecting_routes,
+    simplify_non_toll_routes_for_connecting_routes
 )
 from routing_engine.src.data_structures.connected_route_graph import ConnectedRouteGraph
 from routing_engine.src.utils.setup_logger import get_logger
+from routing_engine.src.utils.timer import Timer
 
 logger = get_logger()
 
@@ -32,7 +34,10 @@ def test_connecting_routes():
     ) = test_get_route_graph()
     
     simp_route_graph = simplify_toll_graph_for_connecting_routes(route_graphs)
-    connecting_routes = get_connecting_routes(simp_route_graph)
+    with Timer('getting connecting routes', 'got connecting routes'):
+        connecting_routes = get_connecting_routes(simp_route_graph)
+    # simplify_non_toll_routes_for_connecting_routes(connecting_routes, route_graphs, route_node_mapping, builder)
+
     (
         traffic_aware_polylines, intra_route_section_data, inter_route_section_data
     ) = get_traffic_aware_durations(

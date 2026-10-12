@@ -15,6 +15,7 @@ from routing_engine.src.helpers.build_traffic_routing_waypoints import TrafficWa
 from routing_engine.src.data_structures.connected_route_graph import ConnectedRouteGraph
 from routing_engine.src.types.types import ConnectingRoutesType, IntraRouteSectionData, InterRouteSectionData, PolylineType
 from routing_engine.src.helpers.get_and_manipulate_graph import get_subgraph_copy, simplify_toll_graph
+from routing_engine.src.build_user_route_graph import RouteGraphBuilder
 
 from routing_engine.src.utils.setup_logger import get_logger
 from routing_engine.src.get_toll_cost import get_toll_cost
@@ -33,6 +34,25 @@ def simplify_toll_graph_for_connecting_routes(route_graphs: list[nx.MultiDiGraph
     # logger.info((len(simp_toll_graph.nodes), len(route_graphs[0].nodes)))
     simp_route_graph[0] = simp_toll_graph
     return simp_route_graph
+
+def simplify_non_toll_routes_for_connecting_routes(
+    connecting_routes: ConnectingRoutesType,
+    route_graphs: List[nx.MultiDiGraph],
+    route_node_mapping: list[dict[int, int]],
+    builder: RouteGraphBuilder
+):
+    nodes_to_keep = {1: [], 2: []}
+    for connecting_route in connecting_routes:
+        route_idx = connecting_route['start_node_route_idx']
+        node_id = connecting_route['start_node_id']
+        if route_idx in (1, 2):
+            nodes_to_keep[route_idx].append(node_id)
+
+    for route_idx in (1, 2):
+        new_route_mapping = {node_id: route_node_mapping[route_idx][node_id] for node_id in nodes_to_keep[route_idx]}
+        route_node_mapping[route_idx] = new_route_mapping
+        builder_mapping = {node_id: node_id for node_id in nodes_to_keep[route_idx]}
+        route_graphs[route_idx] = builder.build_route_graph(builder_mapping, route_graphs[route_idx])
 
 def get_connecting_routes(route_graphs: List[nx.MultiDiGraph]):
     # relabel_nodes_in_dfs_order(route_graphs)

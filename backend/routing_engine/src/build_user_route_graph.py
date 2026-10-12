@@ -143,12 +143,16 @@ class RouteGraphBuilder:
             route_nodes = self.get_route_nodes(latlon, self.major_ints_graph, GRAPH_TO_PLINE_MAPPING_DIST)
             logger.info(f'mapped {len(route_nodes)} nodes')
 
-            in_order_node_ids = [item[1] for item in sorted(route_nodes.items(), key=lambda item: item[0])]
-            nodes_to_keep, _ = simplify_node_chain(in_order_node_ids, self.major_ints_graph)
-            nodes_to_keep_set = set(nodes_to_keep)
-            nodes_to_keep = {item[0]: item[1] for item in route_nodes.items() if item[1] in nodes_to_keep_set}
+            DO_SIMPLIFICATION = True
+            if DO_SIMPLIFICATION:
+                in_order_node_ids = [item[1] for item in sorted(route_nodes.items(), key=lambda item: item[0])]
+                nodes_to_keep, _ = simplify_node_chain(in_order_node_ids, self.major_ints_graph)
+                nodes_to_keep_set = set(nodes_to_keep)
+                nodes_to_keep = {item[0]: item[1] for item in route_nodes.items() if item[1] in nodes_to_keep_set}
+                logger.info(f'simplified chain to {len(nodes_to_keep)} nodes')
+            else:
+                nodes_to_keep = route_nodes
             p2b_mappings.append(nodes_to_keep)
-            logger.info(f'simplified chain to {len(nodes_to_keep)} nodes')
 
             route_graph = self.build_route_graph(nodes_to_keep, self.major_ints_graph)
             route_graphs.append(route_graph)
