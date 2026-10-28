@@ -1,9 +1,18 @@
-import MapDisplay from "@/components/Map/MapDisplay";
+import React from "react";
+import { FloatingToC } from "@/components/home/FloatingToC";
+import { HeroSection } from "@/components/home/HeroSection";
+import { TheProblemSection } from "@/components/home/TheProblemSection";
+import { HowItWorksSection } from "@/components/home/HowItWorksSection";
+import { FeaturesSection } from "@/components/home/FeaturesSection";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <main className="w-full h-full">
-      <MapDisplay />
+    <main className="relative">
+      <FloatingToC />
+      <HeroSection />
+      <TheProblemSection />
+      <HowItWorksSection />
+      <FeaturesSection />
     </main>
   );
 }
